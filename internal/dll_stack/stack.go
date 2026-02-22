@@ -1,4 +1,4 @@
-package dll_stack
+package stack
 
 import "iter"
 
