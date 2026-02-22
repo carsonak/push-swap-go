@@ -11,6 +11,11 @@ type Stack[T any] struct {
 	items []T
 }
 
+// internalIndex calculates maps the given index to the correct index in the stack.
+func internalIndex(i, len int) int {
+	return len - 1 - i
+}
+
 // New creates a `Stack`. You can optionally pass initialising elements.
 // The first element passed will be at the top of the stack,
 // and the last element will be at the bottom.
@@ -33,6 +38,18 @@ func NewWithCapacity[T any](capacity int) *Stack[T] {
 	}
 }
 
+// Swap switches the positions of the first 2 elements in the stack.
+func (s *Stack[T]) Swap() {
+	if s.Len() < 2 {
+		return
+	}
+
+	index0 := internalIndex(0, s.Len())
+	index1 := internalIndex(1, s.Len())
+
+	s.items[index0], s.items[index1] = s.items[index1], s.items[index0]
+}
+
 // Push adds a new element to the top of the stack.
 func (s *Stack[T]) Push(v T) {
 	s.items = append(s.items, v)
@@ -42,11 +59,11 @@ func (s *Stack[T]) Push(v T) {
 func (s *Stack[T]) Pop() (T, bool) {
 	var topItem T
 
-	if len(s.items) < 1 {
+	if s.Len() < 1 {
 		return topItem, false
 	}
 
-	topIndex := len(s.items) - 1
+	topIndex := internalIndex(0, s.Len())
 
 	topItem = s.items[topIndex]
 	// Zero out the memory slot to drop references.
@@ -57,41 +74,45 @@ func (s *Stack[T]) Pop() (T, bool) {
 
 // Index returns the value at the specified index where 0 is the top of the stack.
 func (s *Stack[T]) Index(index int) (T, bool) {
-	if index < 0 || index >= len(s.items) {
+	if index < 0 || index >= s.Len() {
 		var zero T
 		return zero, false
 	}
 
 	// Since the end of the slice is the top of the stack we
 	// map the user's index (0 = top) to the internal slice index
-	internalIndex := len(s.items) - 1 - index
-	return s.items[internalIndex], true
+	index = internalIndex(index, s.Len())
+	return s.items[index], true
 }
 
 // Rotate shifts all elements up. The top element becomes the bottom element.
 func (s *Stack[T]) Rotate() {
-	if len(s.items) <= 1 {
+	if s.Len() < 2 {
 		return
 	}
 
-	top := s.items[len(s.items)-1]
+	topIndex := internalIndex(0, s.Len())
+	bottomIndex := internalIndex(s.Len()-1, s.Len())
+	top := s.items[topIndex]
 
 	// Shift everything else one slot up the stack.
-	copy(s.items[1:], s.items[:len(s.items)-1])
-	s.items[0] = top
+	copy(s.items[bottomIndex+1:], s.items[:topIndex])
+	s.items[bottomIndex] = top
 }
 
 // ReverseRotate shifts all elements down. The bottom element becomes the top element.
 func (s *Stack[T]) ReverseRotate() {
-	if len(s.items) <= 1 {
+	if s.Len() < 2 {
 		return
 	}
 
-	bottom := s.items[0]
+	topIndex := internalIndex(0, s.Len())
+	bottomIndex := internalIndex(s.Len()-1, s.Len())
+	bottom := s.items[bottomIndex]
 
 	// Shift everything else one slot down the stack.
-	copy(s.items[:len(s.items)-1], s.items[1:])
-	s.items[len(s.items)-1] = bottom
+	copy(s.items[:topIndex], s.items[bottomIndex+1:])
+	s.items[topIndex] = bottom
 }
 
 // All returns an iterator over the stack elements from top (index 0) to bottom.
@@ -99,8 +120,9 @@ func (s *Stack[T]) ReverseRotate() {
 func (s *Stack[T]) All() iter.Seq2[int, T] {
 	return func(yield func(int, T) bool) {
 		for i := range s.Len() {
-			val, _ := s.Index(i)
-			if !yield(i, val) {
+			idx := internalIndex(i, s.Len())
+			
+			if !yield(i, s.items[idx]) {
 				return
 			}
 		}

@@ -125,6 +125,131 @@ func TestNewWithCapacity(t *testing.T) {
 	}
 }
 
+func TestSwap(t *testing.T) {
+	tests := []struct {
+		name          string
+		initial       []int
+		wantAfterSwap []int
+		wantLen       int
+	}{
+		{
+			name:          "empty stack",
+			initial:       []int{},
+			wantAfterSwap: []int{},
+			wantLen:       0,
+		},
+		{
+			name:          "single element",
+			initial:       []int{42},
+			wantAfterSwap: []int{42},
+			wantLen:       1,
+		},
+		{
+			name:          "two elements",
+			initial:       []int{1, 2},
+			wantAfterSwap: []int{2, 1},
+			wantLen:       2,
+		},
+		{
+			name:          "three elements",
+			initial:       []int{1, 2, 3},
+			wantAfterSwap: []int{2, 1, 3},
+			wantLen:       3,
+		},
+		{
+			name:          "five elements",
+			initial:       []int{1, 2, 3, 4, 5},
+			wantAfterSwap: []int{2, 1, 3, 4, 5},
+			wantLen:       5,
+		},
+		{
+			name:          "large stack",
+			initial:       []int{10, 20, 30, 40, 50, 60, 70, 80, 90, 100},
+			wantAfterSwap: []int{20, 10, 30, 40, 50, 60, 70, 80, 90, 100},
+			wantLen:       10,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := New(tt.initial...)
+			s.Swap()
+
+			if s.Len() != tt.wantLen {
+				t.Errorf("Len() = %v, want %v", s.Len(), tt.wantLen)
+			}
+
+			for i := 0; i < len(tt.wantAfterSwap); i++ {
+				gotValue, gotOk := s.Index(i)
+				if !gotOk {
+					t.Fatalf("Index(%d) returned false", i)
+				}
+				if gotValue != tt.wantAfterSwap[i] {
+					t.Errorf("Index(%d) = %v, want %v", i, gotValue, tt.wantAfterSwap[i])
+				}
+			}
+		})
+	}
+}
+
+func TestSwapMultipleTimes(t *testing.T) {
+	tests := []struct {
+		name      string
+		initial   []int
+		numSwaps  int
+		wantFinal []int
+	}{
+		{
+			name:      "swap twice returns to original",
+			initial:   []int{1, 2, 3},
+			numSwaps:  2,
+			wantFinal: []int{1, 2, 3},
+		},
+		{
+			name:      "swap three times",
+			initial:   []int{1, 2, 3},
+			numSwaps:  3,
+			wantFinal: []int{2, 1, 3},
+		},
+		{
+			name:      "swap empty stack multiple times",
+			initial:   []int{},
+			numSwaps:  5,
+			wantFinal: []int{},
+		},
+		{
+			name:      "swap single element multiple times",
+			initial:   []int{42},
+			numSwaps:  10,
+			wantFinal: []int{42},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := New(tt.initial...)
+
+			for i := 0; i < tt.numSwaps; i++ {
+				s.Swap()
+			}
+
+			if s.Len() != len(tt.wantFinal) {
+				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.wantFinal))
+			}
+
+			for i := 0; i < len(tt.wantFinal); i++ {
+				gotValue, gotOk := s.Index(i)
+				if !gotOk {
+					t.Fatalf("Index(%d) returned false", i)
+				}
+				if gotValue != tt.wantFinal[i] {
+					t.Errorf("Index(%d) = %v, want %v", i, gotValue, tt.wantFinal[i])
+				}
+			}
+		})
+	}
+}
+
 func TestPush(t *testing.T) {
 	tests := []struct {
 		name         string
