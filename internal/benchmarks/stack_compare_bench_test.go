@@ -4,8 +4,8 @@ import (
 	"math/rand"
 	"testing"
 
-	dllStack "push-swap-go/internal/dll_stack"
-	sliceStack "push-swap-go/internal/slice_stack"
+	"push-swap-go/internal/dllStack"
+	"push-swap-go/internal/sliceStack"
 )
 
 // Stacker interface allows us to run the exact same benchmark code on both types
