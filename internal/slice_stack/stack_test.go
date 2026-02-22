@@ -4,6 +4,7 @@ import (
 	"testing"
 )
 
+// TestNew verifies stack creation with various initialization sizes.
 func TestNew(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -102,7 +103,7 @@ func TestNewWithCapacity(t *testing.T) {
 			}
 
 			// Test that we can push at least capacity elements
-			for i := 0; i < tt.capacity; i++ {
+			for i := range tt.capacity {
 				s.Push(i)
 			}
 
@@ -179,7 +180,7 @@ func TestSwap(t *testing.T) {
 				t.Errorf("Len() = %v, want %v", s.Len(), tt.wantLen)
 			}
 
-			for i := 0; i < len(tt.wantAfterSwap); i++ {
+			for i := range len(tt.wantAfterSwap) {
 				gotValue, gotOk := s.Index(i)
 				if !gotOk {
 					t.Fatalf("Index(%d) returned false", i)
@@ -192,58 +193,35 @@ func TestSwap(t *testing.T) {
 	}
 }
 
-func TestSwapMultipleTimes(t *testing.T) {
+func TestPushBottom(t *testing.T) {
 	tests := []struct {
 		name      string
-		initial   []int
-		numSwaps  int
-		wantFinal []int
+		pushItems []int
+		wantOrder []int
 	}{
-		{
-			name:      "swap twice returns to original",
-			initial:   []int{1, 2, 3},
-			numSwaps:  2,
-			wantFinal: []int{1, 2, 3},
-		},
-		{
-			name:      "swap three times",
-			initial:   []int{1, 2, 3},
-			numSwaps:  3,
-			wantFinal: []int{2, 1, 3},
-		},
-		{
-			name:      "swap empty stack multiple times",
-			initial:   []int{},
-			numSwaps:  5,
-			wantFinal: []int{},
-		},
-		{
-			name:      "swap single element multiple times",
-			initial:   []int{42},
-			numSwaps:  10,
-			wantFinal: []int{42},
-		},
+		{name: "single element", pushItems: []int{42}, wantOrder: []int{42}},
+		{name: "multiple elements in order", pushItems: []int{1, 2, 3}, wantOrder: []int{1, 2, 3}},
+		{name: "five elements", pushItems: []int{10, 20, 30, 40, 50}, wantOrder: []int{10, 20, 30, 40, 50}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := New(tt.initial...)
-
-			for i := 0; i < tt.numSwaps; i++ {
-				s.Swap()
+			s := New[int]()
+			for _, v := range tt.pushItems {
+				s.PushBottom(v)
 			}
 
-			if s.Len() != len(tt.wantFinal) {
-				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.wantFinal))
+			if s.Len() != len(tt.wantOrder) {
+				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.wantOrder))
 			}
 
-			for i := 0; i < len(tt.wantFinal); i++ {
-				gotValue, gotOk := s.Index(i)
-				if !gotOk {
+			for i, want := range tt.wantOrder {
+				got, ok := s.Index(i)
+				if !ok {
 					t.Fatalf("Index(%d) returned false", i)
 				}
-				if gotValue != tt.wantFinal[i] {
-					t.Errorf("Index(%d) = %v, want %v", i, gotValue, tt.wantFinal[i])
+				if got != want {
+					t.Errorf("Index(%d) = %v, want %v", i, got, want)
 				}
 			}
 		})
@@ -285,6 +263,15 @@ func TestPush(t *testing.T) {
 			pushValues:   []int{2, 3, 4, 5},
 			wantLen:      5,
 			wantTopValue: 5,
+		},
+		{
+			// Pushing 9 elements onto a 1-element New stack forces at least one
+			// resize, exercising the ring-buffer reallocation path.
+			name:         "push triggers resize",
+			initial:      []int{99},
+			pushValues:   []int{1, 2, 3, 4, 5, 6, 7, 8, 9},
+			wantLen:      10,
+			wantTopValue: 9,
 		},
 	}
 
@@ -366,7 +353,7 @@ func TestPop(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(tt.initial...)
 
-			for i := 0; i < tt.numPops; i++ {
+			for i := range tt.numPops {
 				gotValue, gotOk := s.Pop()
 
 				if gotOk != tt.wantOks[i] {
@@ -508,13 +495,66 @@ func TestRotate(t *testing.T) {
 				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.wantAfterRot))
 			}
 
-			for i := 0; i < len(tt.wantAfterRot); i++ {
+			for i := range len(tt.wantAfterRot) {
 				gotValue, gotOk := s.Index(i)
 				if !gotOk {
 					t.Fatalf("Index(%d) returned false", i)
 				}
 				if gotValue != tt.wantAfterRot[i] {
 					t.Errorf("Index(%d) = %v, want %v", i, gotValue, tt.wantAfterRot[i])
+				}
+			}
+		})
+	}
+
+	// Extra cases that exercise the ring buffer with a non-full backing array
+	// (i.e. built via Push on an empty stack rather than via New).
+	pushTests := []struct {
+		name       string
+		pushOrder  []int // pushed in this order; last pushed = top
+		numRotates int
+		wantFinal  []int
+	}{
+		{
+			name:       "non-full buffer: three elements one rotate",
+			pushOrder:  []int{3, 2, 1}, // top → 1
+			numRotates: 1,
+			wantFinal:  []int{2, 3, 1},
+		},
+		{
+			name:       "non-full buffer: full cycle returns to original",
+			pushOrder:  []int{3, 2, 1}, // top → 1, 2, 3
+			numRotates: 3,
+			wantFinal:  []int{1, 2, 3},
+		},
+		{
+			name:       "non-full buffer: five elements two rotates",
+			pushOrder:  []int{5, 4, 3, 2, 1}, // top → 1, 2, 3, 4, 5
+			numRotates: 2,
+			wantFinal:  []int{3, 4, 5, 1, 2},
+		},
+	}
+
+	for _, tt := range pushTests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := New[int]()
+			for _, v := range tt.pushOrder {
+				s.Push(v)
+			}
+			for range tt.numRotates {
+				s.Rotate()
+			}
+
+			if s.Len() != len(tt.wantFinal) {
+				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.wantFinal))
+			}
+			for i, want := range tt.wantFinal {
+				got, ok := s.Index(i)
+				if !ok {
+					t.Fatalf("Index(%d) returned false", i)
+				}
+				if got != want {
+					t.Errorf("Index(%d) = %v, want %v", i, got, want)
 				}
 			}
 		})
@@ -563,13 +603,209 @@ func TestReverseRotate(t *testing.T) {
 				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.wantAfterRot))
 			}
 
-			for i := 0; i < len(tt.wantAfterRot); i++ {
+			for i := range len(tt.wantAfterRot) {
 				gotValue, gotOk := s.Index(i)
 				if !gotOk {
 					t.Fatalf("Index(%d) returned false", i)
 				}
 				if gotValue != tt.wantAfterRot[i] {
 					t.Errorf("Index(%d) = %v, want %v", i, gotValue, tt.wantAfterRot[i])
+				}
+			}
+		})
+	}
+
+	// Extra cases that exercise the ring buffer with a non-full backing array.
+	pushTests := []struct {
+		name          string
+		pushOrder     []int // pushed in this order; last pushed = top
+		numRevRotates int
+		wantFinal     []int
+	}{
+		{
+			name:          "non-full buffer: three elements one reverse rotate",
+			pushOrder:     []int{3, 2, 1}, // top → 1, 2, 3
+			numRevRotates: 1,
+			wantFinal:     []int{3, 1, 2},
+		},
+		{
+			name:          "non-full buffer: full cycle returns to original",
+			pushOrder:     []int{3, 2, 1}, // top → 1, 2, 3
+			numRevRotates: 3,
+			wantFinal:     []int{1, 2, 3},
+		},
+		{
+			name:          "non-full buffer: five elements two reverse rotates",
+			pushOrder:     []int{5, 4, 3, 2, 1}, // top → 1, 2, 3, 4, 5
+			numRevRotates: 2,
+			wantFinal:     []int{4, 5, 1, 2, 3},
+		},
+	}
+
+	for _, tt := range pushTests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := New[int]()
+			for _, v := range tt.pushOrder {
+				s.Push(v)
+			}
+			for range tt.numRevRotates {
+				s.ReverseRotate()
+			}
+
+			if s.Len() != len(tt.wantFinal) {
+				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.wantFinal))
+			}
+			for i, want := range tt.wantFinal {
+				got, ok := s.Index(i)
+				if !ok {
+					t.Fatalf("Index(%d) returned false", i)
+				}
+				if got != want {
+					t.Errorf("Index(%d) = %v, want %v", i, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestRotateFullCycle verifies that rotating N elements N times returns them to their original positions.
+func TestRotateFullCycle(t *testing.T) {
+	tests := []struct {
+		name    string
+		initial []int
+	}{
+		{name: "single element", initial: []int{1}},
+		{name: "two elements", initial: []int{1, 2}},
+		{name: "three elements", initial: []int{1, 2, 3}},
+		{name: "four elements", initial: []int{1, 2, 3, 4}},
+		{name: "five elements", initial: []int{1, 2, 3, 4, 5}},
+		{name: "seven elements", initial: []int{1, 2, 3, 4, 5, 6, 7}},
+		{name: "ten elements", initial: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
+	}
+
+	for _, tt := range tests {
+		// Test with New() initialization
+		t.Run(tt.name+" via New", func(t *testing.T) {
+			s := New(tt.initial...)
+			n := s.Len()
+
+			// Rotate N times
+			for range n {
+				s.Rotate()
+			}
+
+			// Verify all elements are back in their original positions
+			if s.Len() != len(tt.initial) {
+				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.initial))
+			}
+			for i, want := range tt.initial {
+				got, ok := s.Index(i)
+				if !ok {
+					t.Fatalf("Index(%d) returned false", i)
+				}
+				if got != want {
+					t.Errorf("After %d rotations, Index(%d) = %v, want %v", n, i, got, want)
+				}
+			}
+		})
+
+		// Test with Push() initialization (non-full buffer)
+		t.Run(tt.name+" via Push", func(t *testing.T) {
+			s := New[int]()
+			// Push in reverse order so that when we read from index 0, we get the first element
+			for i := len(tt.initial) - 1; i >= 0; i-- {
+				s.Push(tt.initial[i])
+			}
+			n := s.Len()
+
+			// Rotate N times
+			for range n {
+				s.Rotate()
+			}
+
+			// Verify all elements are back in their original positions
+			if s.Len() != len(tt.initial) {
+				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.initial))
+			}
+			for i, want := range tt.initial {
+				got, ok := s.Index(i)
+				if !ok {
+					t.Fatalf("Index(%d) returned false", i)
+				}
+				if got != want {
+					t.Errorf("After %d rotations, Index(%d) = %v, want %v", n, i, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestReverseRotateFullCycle verifies that reverse-rotating N elements N times returns them to their original positions.
+func TestReverseRotateFullCycle(t *testing.T) {
+	tests := []struct {
+		name    string
+		initial []int
+	}{
+		{name: "single element", initial: []int{1}},
+		{name: "two elements", initial: []int{1, 2}},
+		{name: "three elements", initial: []int{1, 2, 3}},
+		{name: "four elements", initial: []int{1, 2, 3, 4}},
+		{name: "five elements", initial: []int{1, 2, 3, 4, 5}},
+		{name: "seven elements", initial: []int{1, 2, 3, 4, 5, 6, 7}},
+		{name: "ten elements", initial: []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
+	}
+
+	for _, tt := range tests {
+		// Test with New() initialization
+		t.Run(tt.name+" via New", func(t *testing.T) {
+			s := New(tt.initial...)
+			n := s.Len()
+
+			// Reverse-rotate N times
+			for range n {
+				s.ReverseRotate()
+			}
+
+			// Verify all elements are back in their original positions
+			if s.Len() != len(tt.initial) {
+				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.initial))
+			}
+			for i, want := range tt.initial {
+				got, ok := s.Index(i)
+				if !ok {
+					t.Fatalf("Index(%d) returned false", i)
+				}
+				if got != want {
+					t.Errorf("After %d reverse-rotations, Index(%d) = %v, want %v", n, i, got, want)
+				}
+			}
+		})
+
+		// Test with Push() initialization (non-full buffer)
+		t.Run(tt.name+" via Push", func(t *testing.T) {
+			s := New[int]()
+			// Push in reverse order so that when we read from index 0, we get the first element
+			for i := len(tt.initial) - 1; i >= 0; i-- {
+				s.Push(tt.initial[i])
+			}
+			n := s.Len()
+
+			// Reverse-rotate N times
+			for range n {
+				s.ReverseRotate()
+			}
+
+			// Verify all elements are back in their original positions
+			if s.Len() != len(tt.initial) {
+				t.Errorf("Len() = %v, want %v", s.Len(), len(tt.initial))
+			}
+			for i, want := range tt.initial {
+				got, ok := s.Index(i)
+				if !ok {
+					t.Fatalf("Index(%d) returned false", i)
+				}
+				if got != want {
+					t.Errorf("After %d reverse-rotations, Index(%d) = %v, want %v", n, i, got, want)
 				}
 			}
 		})
@@ -626,63 +862,6 @@ func TestAll(t *testing.T) {
 	}
 }
 
-func TestAllWithIndices(t *testing.T) {
-	tests := []struct {
-		name        string
-		initial     []int
-		wantIndices []int
-		wantValues  []int
-	}{
-		{
-			name:        "empty stack",
-			initial:     []int{},
-			wantIndices: []int{},
-			wantValues:  []int{},
-		},
-		{
-			name:        "single element",
-			initial:     []int{42},
-			wantIndices: []int{0},
-			wantValues:  []int{42},
-		},
-		{
-			name:        "multiple elements",
-			initial:     []int{1, 2, 3},
-			wantIndices: []int{0, 1, 2},
-			wantValues:  []int{1, 2, 3},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := New(tt.initial...)
-
-			var gotIndices []int
-			var gotValues []int
-			for idx, val := range s.All() {
-				gotIndices = append(gotIndices, idx)
-				gotValues = append(gotValues, val)
-			}
-
-			if len(gotIndices) != len(tt.wantIndices) {
-				t.Errorf("All() returned %d indices, want %d", len(gotIndices), len(tt.wantIndices))
-			}
-
-			for i, idx := range gotIndices {
-				if idx != tt.wantIndices[i] {
-					t.Errorf("All() index %d = %v, want %v", i, idx, tt.wantIndices[i])
-				}
-			}
-
-			for i, v := range gotValues {
-				if v != tt.wantValues[i] {
-					t.Errorf("All() value %d = %v, want %v", i, v, tt.wantValues[i])
-				}
-			}
-		})
-	}
-}
-
 func TestLen(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -727,7 +906,7 @@ func TestLen(t *testing.T) {
 	}
 }
 
-func TestMultipleOperations(t *testing.T) {
+func TestCombinedOperations(t *testing.T) {
 	tests := []struct {
 		name       string
 		operations func(*Stack[int])

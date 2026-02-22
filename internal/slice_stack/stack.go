@@ -2,31 +2,31 @@ package stack
 
 import (
 	"iter"
-	"slices"
 )
 
 // Stack represents a Last-In-First-Out (LIFO) data structure.
+// Implemented as a ring buffer to achieve O(1) rotations.
 type Stack[T any] struct {
-	// The last item in the slice will be the top of the stack.
 	items []T
+	head  int // index of the top element
+	size  int // current number of elements
 }
 
-// internalIndex calculates maps the given index to the correct index in the stack.
-func internalIndex(i, len int) int {
-	return len - 1 - i
+// internalIndex calculates the actual slice index for a given logical stack index.
+func (s *Stack[T]) internalIndex(i int) int {
+	return (s.head + i) % len(s.items)
 }
 
 // New creates a `Stack`. You can optionally pass initialising elements.
-// The first element passed will be at the top of the stack,
-// and the last element will be at the bottom.
+// The first element passed will be at the top of the stack.
 func New[T any](items ...T) *Stack[T] {
-	// Create a copy of the data to own it.
 	cpy := make([]T, len(items))
 
 	copy(cpy, items)
-	slices.Reverse(cpy)
 	return &Stack[T]{
 		items: cpy,
+		head:  0,
+		size:  len(items),
 	}
 }
 
@@ -34,95 +34,132 @@ func New[T any](items ...T) *Stack[T] {
 // `capacity` elements without triggering memory allocation on push.
 func NewWithCapacity[T any](capacity int) *Stack[T] {
 	return &Stack[T]{
-		items: make([]T, 0, capacity),
+		items: make([]T, capacity),
+		head:  0,
+		size:  0,
 	}
+}
+
+// PushBottom adds a new element to the bottom of the stack.
+// This is a helper to initialize the stack with items in correct order.
+func (s *Stack[T]) PushBottom(v T) {
+	if s.size == len(s.items) {
+		s.resize()
+	}
+
+	if s.size == 0 {
+		s.items[s.head] = v
+	} else {
+		bottomIdx := (s.head + s.size) % len(s.items)
+		s.items[bottomIdx] = v
+	}
+
+	s.size++
+}
+
+// resize doubles the capacity of the underlying array when full.
+func (s *Stack[T]) resize() {
+	newCap := len(s.items) * 2
+	if newCap == 0 {
+		newCap = 8 // Default initial capacity
+	}
+
+	newItems := make([]T, newCap)
+
+	for i := range s.size {
+		newItems[i] = s.items[s.internalIndex(i)]
+	}
+
+	s.items = newItems
+	s.head = 0
 }
 
 // Swap switches the positions of the first 2 elements in the stack.
 func (s *Stack[T]) Swap() {
-	if s.Len() < 2 {
+	if s.size < 2 {
 		return
 	}
 
-	index0 := internalIndex(0, s.Len())
-	index1 := internalIndex(1, s.Len())
+	idx0 := s.head
+	idx1 := s.internalIndex(1)
 
-	s.items[index0], s.items[index1] = s.items[index1], s.items[index0]
+	s.items[idx0], s.items[idx1] = s.items[idx1], s.items[idx0]
 }
 
 // Push adds a new element to the top of the stack.
 func (s *Stack[T]) Push(v T) {
-	s.items = append(s.items, v)
+	if s.size == len(s.items) {
+		s.resize()
+	}
+
+	// Move head backwards (wrapping around) to prepend the new top.
+	s.head = (s.head - 1 + len(s.items)) % len(s.items)
+	s.items[s.head] = v
+	s.size++
 }
 
 // Pop removes and returns the element at the top of the stack.
 func (s *Stack[T]) Pop() (T, bool) {
-	var topItem T
+	if s.size == 0 {
+		var zero T
 
-	if s.Len() < 1 {
-		return topItem, false
+		return zero, false
 	}
 
-	topIndex := internalIndex(0, s.Len())
+	topItem := s.items[s.head]
 
-	topItem = s.items[topIndex]
-	// Zero out the memory slot to drop references.
-	s.items[topIndex] = *new(T)
-	s.items = s.items[:topIndex]
+	// Zero out memory to drop references
+	s.items[s.head] = *new(T)
+
+	s.head = s.internalIndex(1)
+	s.size--
+
 	return topItem, true
 }
 
 // Index returns the value at the specified index where 0 is the top of the stack.
 func (s *Stack[T]) Index(index int) (T, bool) {
-	if index < 0 || index >= s.Len() {
+	if index < 0 || index >= s.size {
 		var zero T
+
 		return zero, false
 	}
 
-	// Since the end of the slice is the top of the stack we
-	// map the user's index (0 = top) to the internal slice index
-	index = internalIndex(index, s.Len())
-	return s.items[index], true
+	return s.items[s.internalIndex(index)], true
 }
 
 // Rotate shifts all elements up. The top element becomes the bottom element.
 func (s *Stack[T]) Rotate() {
-	if s.Len() < 2 {
+	if s.size < 2 {
 		return
 	}
 
-	topIndex := internalIndex(0, s.Len())
-	bottomIndex := internalIndex(s.Len()-1, s.Len())
-	top := s.items[topIndex]
-
-	// Shift everything else one slot up the stack.
-	copy(s.items[bottomIndex+1:], s.items[:topIndex])
-	s.items[bottomIndex] = top
+	// Copy the top element into the slot just after the current bottom so it
+	// remains reachable once head advances. When the buffer is full the copy
+	// lands on head itself (a no-op), which is also correct.
+	newBottomIdx := (s.internalIndex(s.size-1) + 1) % len(s.items)
+	s.items[newBottomIdx] = s.items[s.head]
+	s.head = s.internalIndex(1)
 }
 
 // ReverseRotate shifts all elements down. The bottom element becomes the top element.
 func (s *Stack[T]) ReverseRotate() {
-	if s.Len() < 2 {
+	if s.size < 2 {
 		return
 	}
-
-	topIndex := internalIndex(0, s.Len())
-	bottomIndex := internalIndex(s.Len()-1, s.Len())
-	bottom := s.items[bottomIndex]
-
-	// Shift everything else one slot down the stack.
-	copy(s.items[:topIndex], s.items[bottomIndex+1:])
-	s.items[topIndex] = bottom
+	// Copy the bottom element into the slot just before head so it becomes
+	// the new top once head retreats. When the buffer is full the copy
+	// lands on the bottom index itself (a no-op), which is also correct.
+	newHeadIdx := (s.head - 1 + len(s.items)) % len(s.items)
+	s.items[newHeadIdx] = s.items[s.internalIndex(s.size-1)]
+	s.head = newHeadIdx
 }
 
 // All returns an iterator over the stack elements from top (index 0) to bottom.
-// This allows you to use a standard `for index, value := range stack.All()` loop.
 func (s *Stack[T]) All() iter.Seq2[int, T] {
 	return func(yield func(int, T) bool) {
-		for i := range s.Len() {
-			idx := internalIndex(i, s.Len())
-			
-			if !yield(i, s.items[idx]) {
+		for i := range s.size {
+			if !yield(i, s.items[s.internalIndex(i)]) {
 				return
 			}
 		}
@@ -131,5 +168,5 @@ func (s *Stack[T]) All() iter.Seq2[int, T] {
 
 // Len returns the current number of items in the stack.
 func (s *Stack[T]) Len() int {
-	return len(s.items)
+	return s.size
 }
