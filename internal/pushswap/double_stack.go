@@ -2,21 +2,23 @@ package pushswap
 
 import stack "push-swap-go/internal/dllStack"
 
-// DStack is a pair of stacks for the push-swap program.
-type DStack struct {
-	A stack.Stack[float64]
-	B stack.Stack[float64]
+type psStack = stack.Stack[float64]
+
+// DoubleStack is a pair of stacks for the push-swap program.
+type DoubleStack struct {
+	A psStack
+	B psStack
 }
 
 // New initialises a `DStack` with an optional list of numbers.
-func New(nums ...float64) *DStack {
-	return &DStack{
+func New(nums ...float64) *DoubleStack {
+	return &DoubleStack{
 		A: *stack.New(nums...),
 		B: *stack.NewWithCapacity[float64](len(nums)),
 	}
 }
 
-func (ds *DStack) PushToA() Operation {
+func (ds *DoubleStack) PushToA() Operation {
 	val, success := ds.B.Pop()
 	if !success {
 		return Invalid
@@ -26,7 +28,7 @@ func (ds *DStack) PushToA() Operation {
 	return PA
 }
 
-func (ds *DStack) PushToB() Operation {
+func (ds *DoubleStack) PushToB() Operation {
 	val, success := ds.A.Pop()
 	if !success {
 		return Invalid
@@ -36,49 +38,49 @@ func (ds *DStack) PushToB() Operation {
 	return PB
 }
 
-func (ds *DStack) SwapA() Operation {
+func (ds *DoubleStack) SwapA() Operation {
 	ds.A.Swap()
 	return SA
 }
 
-func (ds *DStack) SwapB() Operation {
+func (ds *DoubleStack) SwapB() Operation {
 	ds.B.Swap()
 	return SB
 }
 
-func (ds *DStack) SSwap() Operation {
+func (ds *DoubleStack) SSwap() Operation {
 	ds.A.Swap()
 	ds.B.Swap()
 	return SS
 }
 
-func (ds *DStack) RotateA() Operation {
+func (ds *DoubleStack) RotateA() Operation {
 	ds.A.Rotate()
 	return RA
 }
 
-func (ds *DStack) RotateB() Operation {
+func (ds *DoubleStack) RotateB() Operation {
 	ds.B.Rotate()
 	return RB
 }
 
-func (ds *DStack) RRotate() Operation {
+func (ds *DoubleStack) RRotate() Operation {
 	ds.A.Rotate()
 	ds.B.Rotate()
 	return RR
 }
 
-func (ds *DStack) ReverseRotateA() Operation {
+func (ds *DoubleStack) ReverseRotateA() Operation {
 	ds.A.ReverseRotate()
 	return RRA
 }
 
-func (ds *DStack) ReverseRotateB() Operation {
+func (ds *DoubleStack) ReverseRotateB() Operation {
 	ds.B.ReverseRotate()
 	return RRB
 }
 
-func (ds *DStack) RReverseRotate() Operation {
+func (ds *DoubleStack) RReverseRotate() Operation {
 	ds.A.ReverseRotate()
 	ds.B.ReverseRotate()
 	return RRR

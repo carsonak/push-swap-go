@@ -6,18 +6,19 @@ import (
 
 // stackContents reads a stack's elements into a slice from top (index 0) to bottom.
 // Using only the public Index/Len API to avoid coupling to the internal implementation.
-func stackContents(ds *DStack, which string) []int {
+func stackContents(ds *DoubleStack, which string) []float64 {
 	var s interface {
 		Len() int
-		Index(int) (int, bool)
+		Index(int) (float64, bool)
 	}
+
 	if which == "A" {
 		s = &ds.A
 	} else {
 		s = &ds.B
 	}
 
-	out := make([]int, s.Len())
+	out := make([]float64, s.Len())
 	for i := range s.Len() {
 		v, _ := s.Index(i)
 		out[i] = v
@@ -25,7 +26,7 @@ func stackContents(ds *DStack, which string) []int {
 	return out
 }
 
-func slicesEqual(a, b []int) bool {
+func slicesEqual(a, b []float64) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -40,42 +41,42 @@ func slicesEqual(a, b []int) bool {
 func TestPushToA(t *testing.T) {
 	tests := []struct {
 		name   string
-		initA  []int
-		initB  []int
-		wantA  []int
-		wantB  []int
+		initA  []float64
+		initB  []float64
+		wantA  []float64
+		wantB  []float64
 		wantOp Operation
 	}{
 		{
 			name:   "push top of B onto A",
-			initA:  []int{3, 4},
-			initB:  []int{1, 2},
-			wantA:  []int{1, 3, 4},
-			wantB:  []int{2},
+			initA:  []float64{3, 4},
+			initB:  []float64{1, 2},
+			wantA:  []float64{1, 3, 4},
+			wantB:  []float64{2},
 			wantOp: PA,
 		},
 		{
 			name:   "push into empty A",
-			initA:  []int{},
-			initB:  []int{5},
-			wantA:  []int{5},
-			wantB:  []int{},
+			initA:  []float64{},
+			initB:  []float64{5},
+			wantA:  []float64{5},
+			wantB:  []float64{},
 			wantOp: PA,
 		},
 		{
 			name:   "B empty returns invalid, A unchanged",
-			initA:  []int{1, 2},
-			initB:  []int{},
-			wantA:  []int{1, 2},
-			wantB:  []int{},
+			initA:  []float64{1, 2},
+			initB:  []float64{},
+			wantA:  []float64{1, 2},
+			wantB:  []float64{},
 			wantOp: Invalid,
 		},
 		{
 			name:   "both empty returns invalid",
-			initA:  []int{},
-			initB:  []int{},
-			wantA:  []int{},
-			wantB:  []int{},
+			initA:  []float64{},
+			initB:  []float64{},
+			wantA:  []float64{},
+			wantB:  []float64{},
 			wantOp: Invalid,
 		},
 	}
@@ -105,42 +106,42 @@ func TestPushToA(t *testing.T) {
 func TestPushToB(t *testing.T) {
 	tests := []struct {
 		name   string
-		initA  []int
-		initB  []int
-		wantA  []int
-		wantB  []int
+		initA  []float64
+		initB  []float64
+		wantA  []float64
+		wantB  []float64
 		wantOp Operation
 	}{
 		{
 			name:   "push top of A onto B",
-			initA:  []int{1, 2},
-			initB:  []int{3, 4},
-			wantA:  []int{2},
-			wantB:  []int{1, 3, 4},
+			initA:  []float64{1, 2},
+			initB:  []float64{3, 4},
+			wantA:  []float64{2},
+			wantB:  []float64{1, 3, 4},
 			wantOp: PB,
 		},
 		{
 			name:   "push into empty B",
-			initA:  []int{5},
-			initB:  []int{},
-			wantA:  []int{},
-			wantB:  []int{5},
+			initA:  []float64{5},
+			initB:  []float64{},
+			wantA:  []float64{},
+			wantB:  []float64{5},
 			wantOp: PB,
 		},
 		{
 			name:   "A empty returns invalid, B unchanged",
-			initA:  []int{},
-			initB:  []int{1, 2},
-			wantA:  []int{},
-			wantB:  []int{1, 2},
+			initA:  []float64{},
+			initB:  []float64{1, 2},
+			wantA:  []float64{},
+			wantB:  []float64{1, 2},
 			wantOp: Invalid,
 		},
 		{
 			name:   "both empty returns invalid",
-			initA:  []int{},
-			initB:  []int{},
-			wantA:  []int{},
-			wantB:  []int{},
+			initA:  []float64{},
+			initB:  []float64{},
+			wantA:  []float64{},
+			wantB:  []float64{},
 			wantOp: Invalid,
 		},
 	}
@@ -171,10 +172,10 @@ func TestPushToB(t *testing.T) {
 func TestPushToAAndPushToBInverse(t *testing.T) {
 	tests := []struct {
 		name  string
-		initA []int
+		initA []float64
 	}{
-		{name: "single element", initA: []int{1}},
-		{name: "multiple elements", initA: []int{1, 2, 3, 4, 5}},
+		{name: "single element", initA: []float64{1}},
+		{name: "multiple elements", initA: []float64{1, 2, 3, 4, 5}},
 	}
 
 	for _, tt := range tests {
@@ -196,32 +197,32 @@ func TestPushToAAndPushToBInverse(t *testing.T) {
 func TestSwapA(t *testing.T) {
 	tests := []struct {
 		name   string
-		initA  []int
-		wantA  []int
+		initA  []float64
+		wantA  []float64
 		wantOp Operation
 	}{
 		{
 			name:   "swaps top two elements",
-			initA:  []int{1, 2, 3},
-			wantA:  []int{2, 1, 3},
+			initA:  []float64{1, 2, 3},
+			wantA:  []float64{2, 1, 3},
 			wantOp: SA,
 		},
 		{
 			name:   "two elements swaps both",
-			initA:  []int{1, 2},
-			wantA:  []int{2, 1},
+			initA:  []float64{1, 2},
+			wantA:  []float64{2, 1},
 			wantOp: SA,
 		},
 		{
 			name:   "single element unchanged",
-			initA:  []int{42},
-			wantA:  []int{42},
+			initA:  []float64{42},
+			wantA:  []float64{42},
 			wantOp: SA,
 		},
 		{
 			name:   "empty stack unchanged",
-			initA:  []int{},
-			wantA:  []int{},
+			initA:  []float64{},
+			wantA:  []float64{},
 			wantOp: SA,
 		},
 	}
@@ -245,32 +246,32 @@ func TestSwapA(t *testing.T) {
 func TestSwapB(t *testing.T) {
 	tests := []struct {
 		name   string
-		initB  []int
-		wantB  []int
+		initB  []float64
+		wantB  []float64
 		wantOp Operation
 	}{
 		{
 			name:   "swaps top two elements",
-			initB:  []int{1, 2, 3},
-			wantB:  []int{2, 1, 3},
+			initB:  []float64{1, 2, 3},
+			wantB:  []float64{2, 1, 3},
 			wantOp: SB,
 		},
 		{
 			name:   "two elements swaps both",
-			initB:  []int{1, 2},
-			wantB:  []int{2, 1},
+			initB:  []float64{1, 2},
+			wantB:  []float64{2, 1},
 			wantOp: SB,
 		},
 		{
 			name:   "single element unchanged",
-			initB:  []int{42},
-			wantB:  []int{42},
+			initB:  []float64{42},
+			wantB:  []float64{42},
 			wantOp: SB,
 		},
 		{
 			name:   "empty stack unchanged",
-			initB:  []int{},
-			wantB:  []int{},
+			initB:  []float64{},
+			wantB:  []float64{},
 			wantOp: SB,
 		},
 	}
@@ -297,34 +298,34 @@ func TestSwapB(t *testing.T) {
 func TestSSwap(t *testing.T) {
 	tests := []struct {
 		name   string
-		initA  []int
-		initB  []int
-		wantA  []int
-		wantB  []int
+		initA  []float64
+		initB  []float64
+		wantA  []float64
+		wantB  []float64
 		wantOp Operation
 	}{
 		{
 			name:   "swaps both stacks",
-			initA:  []int{1, 2, 3},
-			initB:  []int{4, 5, 6},
-			wantA:  []int{2, 1, 3},
-			wantB:  []int{5, 4, 6},
+			initA:  []float64{1, 2, 3},
+			initB:  []float64{4, 5, 6},
+			wantA:  []float64{2, 1, 3},
+			wantB:  []float64{5, 4, 6},
 			wantOp: SS,
 		},
 		{
 			name:   "one empty stack",
-			initA:  []int{1, 2},
-			initB:  []int{},
-			wantA:  []int{2, 1},
-			wantB:  []int{},
+			initA:  []float64{1, 2},
+			initB:  []float64{},
+			wantA:  []float64{2, 1},
+			wantB:  []float64{},
 			wantOp: SS,
 		},
 		{
 			name:   "both empty",
-			initA:  []int{},
-			initB:  []int{},
-			wantA:  []int{},
-			wantB:  []int{},
+			initA:  []float64{},
+			initB:  []float64{},
+			wantA:  []float64{},
+			wantB:  []float64{},
 			wantOp: SS,
 		},
 	}
@@ -354,44 +355,44 @@ func TestSSwap(t *testing.T) {
 func TestRotateA(t *testing.T) {
 	tests := []struct {
 		name    string
-		initA   []int
+		initA   []float64
 		numRots int
-		wantA   []int
+		wantA   []float64
 		wantOp  Operation
 	}{
 		{
 			name:    "top becomes bottom",
-			initA:   []int{1, 2, 3},
+			initA:   []float64{1, 2, 3},
 			numRots: 1,
-			wantA:   []int{2, 3, 1},
+			wantA:   []float64{2, 3, 1},
 			wantOp:  RA,
 		},
 		{
 			name:    "two elements",
-			initA:   []int{1, 2},
+			initA:   []float64{1, 2},
 			numRots: 1,
-			wantA:   []int{2, 1},
+			wantA:   []float64{2, 1},
 			wantOp:  RA,
 		},
 		{
 			name:    "single element unchanged",
-			initA:   []int{42},
+			initA:   []float64{42},
 			numRots: 1,
-			wantA:   []int{42},
+			wantA:   []float64{42},
 			wantOp:  RA,
 		},
 		{
 			name:    "empty stack unchanged",
-			initA:   []int{},
+			initA:   []float64{},
 			numRots: 1,
-			wantA:   []int{},
+			wantA:   []float64{},
 			wantOp:  RA,
 		},
 		{
 			name:    "full cycle restores original",
-			initA:   []int{1, 2, 3, 4, 5},
+			initA:   []float64{1, 2, 3, 4, 5},
 			numRots: 5,
-			wantA:   []int{1, 2, 3, 4, 5},
+			wantA:   []float64{1, 2, 3, 4, 5},
 			wantOp:  RA,
 		},
 	}
@@ -417,44 +418,44 @@ func TestRotateA(t *testing.T) {
 func TestRotateB(t *testing.T) {
 	tests := []struct {
 		name    string
-		initB   []int
+		initB   []float64
 		numRots int
-		wantB   []int
+		wantB   []float64
 		wantOp  Operation
 	}{
 		{
 			name:    "top becomes bottom",
-			initB:   []int{1, 2, 3},
+			initB:   []float64{1, 2, 3},
 			numRots: 1,
-			wantB:   []int{2, 3, 1},
+			wantB:   []float64{2, 3, 1},
 			wantOp:  RB,
 		},
 		{
 			name:    "two elements",
-			initB:   []int{1, 2},
+			initB:   []float64{1, 2},
 			numRots: 1,
-			wantB:   []int{2, 1},
+			wantB:   []float64{2, 1},
 			wantOp:  RB,
 		},
 		{
 			name:    "single element unchanged",
-			initB:   []int{42},
+			initB:   []float64{42},
 			numRots: 1,
-			wantB:   []int{42},
+			wantB:   []float64{42},
 			wantOp:  RB,
 		},
 		{
 			name:    "empty stack unchanged",
-			initB:   []int{},
+			initB:   []float64{},
 			numRots: 1,
-			wantB:   []int{},
+			wantB:   []float64{},
 			wantOp:  RB,
 		},
 		{
 			name:    "full cycle restores original",
-			initB:   []int{1, 2, 3, 4, 5},
+			initB:   []float64{1, 2, 3, 4, 5},
 			numRots: 5,
-			wantB:   []int{1, 2, 3, 4, 5},
+			wantB:   []float64{1, 2, 3, 4, 5},
 			wantOp:  RB,
 		},
 	}
@@ -483,34 +484,34 @@ func TestRotateB(t *testing.T) {
 func TestRRotate(t *testing.T) {
 	tests := []struct {
 		name   string
-		initA  []int
-		initB  []int
-		wantA  []int
-		wantB  []int
+		initA  []float64
+		initB  []float64
+		wantA  []float64
+		wantB  []float64
 		wantOp Operation
 	}{
 		{
 			name:   "rotates both stacks",
-			initA:  []int{1, 2, 3},
-			initB:  []int{4, 5, 6},
-			wantA:  []int{2, 3, 1},
-			wantB:  []int{5, 6, 4},
+			initA:  []float64{1, 2, 3},
+			initB:  []float64{4, 5, 6},
+			wantA:  []float64{2, 3, 1},
+			wantB:  []float64{5, 6, 4},
 			wantOp: RR,
 		},
 		{
 			name:   "one empty stack",
-			initA:  []int{1, 2, 3},
-			initB:  []int{},
-			wantA:  []int{2, 3, 1},
-			wantB:  []int{},
+			initA:  []float64{1, 2, 3},
+			initB:  []float64{},
+			wantA:  []float64{2, 3, 1},
+			wantB:  []float64{},
 			wantOp: RR,
 		},
 		{
 			name:   "both empty",
-			initA:  []int{},
-			initB:  []int{},
-			wantA:  []int{},
-			wantB:  []int{},
+			initA:  []float64{},
+			initB:  []float64{},
+			wantA:  []float64{},
+			wantB:  []float64{},
 			wantOp: RR,
 		},
 	}
@@ -540,44 +541,44 @@ func TestRRotate(t *testing.T) {
 func TestReverseRotateA(t *testing.T) {
 	tests := []struct {
 		name    string
-		initA   []int
+		initA   []float64
 		numRots int
-		wantA   []int
+		wantA   []float64
 		wantOp  Operation
 	}{
 		{
 			name:    "bottom becomes top",
-			initA:   []int{1, 2, 3},
+			initA:   []float64{1, 2, 3},
 			numRots: 1,
-			wantA:   []int{3, 1, 2},
+			wantA:   []float64{3, 1, 2},
 			wantOp:  RRA,
 		},
 		{
 			name:    "two elements",
-			initA:   []int{1, 2},
+			initA:   []float64{1, 2},
 			numRots: 1,
-			wantA:   []int{2, 1},
+			wantA:   []float64{2, 1},
 			wantOp:  RRA,
 		},
 		{
 			name:    "single element unchanged",
-			initA:   []int{42},
+			initA:   []float64{42},
 			numRots: 1,
-			wantA:   []int{42},
+			wantA:   []float64{42},
 			wantOp:  RRA,
 		},
 		{
 			name:    "empty stack unchanged",
-			initA:   []int{},
+			initA:   []float64{},
 			numRots: 1,
-			wantA:   []int{},
+			wantA:   []float64{},
 			wantOp:  RRA,
 		},
 		{
 			name:    "full cycle restores original",
-			initA:   []int{1, 2, 3, 4, 5},
+			initA:   []float64{1, 2, 3, 4, 5},
 			numRots: 5,
-			wantA:   []int{1, 2, 3, 4, 5},
+			wantA:   []float64{1, 2, 3, 4, 5},
 			wantOp:  RRA,
 		},
 	}
@@ -603,44 +604,44 @@ func TestReverseRotateA(t *testing.T) {
 func TestReverseRotateB(t *testing.T) {
 	tests := []struct {
 		name    string
-		initB   []int
+		initB   []float64
 		numRots int
-		wantB   []int
+		wantB   []float64
 		wantOp  Operation
 	}{
 		{
 			name:    "bottom becomes top",
-			initB:   []int{1, 2, 3},
+			initB:   []float64{1, 2, 3},
 			numRots: 1,
-			wantB:   []int{3, 1, 2},
+			wantB:   []float64{3, 1, 2},
 			wantOp:  RRB,
 		},
 		{
 			name:    "two elements",
-			initB:   []int{1, 2},
+			initB:   []float64{1, 2},
 			numRots: 1,
-			wantB:   []int{2, 1},
+			wantB:   []float64{2, 1},
 			wantOp:  RRB,
 		},
 		{
 			name:    "single element unchanged",
-			initB:   []int{42},
+			initB:   []float64{42},
 			numRots: 1,
-			wantB:   []int{42},
+			wantB:   []float64{42},
 			wantOp:  RRB,
 		},
 		{
 			name:    "empty stack unchanged",
-			initB:   []int{},
+			initB:   []float64{},
 			numRots: 1,
-			wantB:   []int{},
+			wantB:   []float64{},
 			wantOp:  RRB,
 		},
 		{
 			name:    "full cycle restores original",
-			initB:   []int{1, 2, 3, 4, 5},
+			initB:   []float64{1, 2, 3, 4, 5},
 			numRots: 5,
-			wantB:   []int{1, 2, 3, 4, 5},
+			wantB:   []float64{1, 2, 3, 4, 5},
 			wantOp:  RRB,
 		},
 	}
@@ -669,34 +670,34 @@ func TestReverseRotateB(t *testing.T) {
 func TestRReverseRotate(t *testing.T) {
 	tests := []struct {
 		name   string
-		initA  []int
-		initB  []int
-		wantA  []int
-		wantB  []int
+		initA  []float64
+		initB  []float64
+		wantA  []float64
+		wantB  []float64
 		wantOp Operation
 	}{
 		{
 			name:   "reverse-rotates both stacks",
-			initA:  []int{1, 2, 3},
-			initB:  []int{4, 5, 6},
-			wantA:  []int{3, 1, 2},
-			wantB:  []int{6, 4, 5},
+			initA:  []float64{1, 2, 3},
+			initB:  []float64{4, 5, 6},
+			wantA:  []float64{3, 1, 2},
+			wantB:  []float64{6, 4, 5},
 			wantOp: RRR,
 		},
 		{
 			name:   "one empty stack",
-			initA:  []int{1, 2, 3},
-			initB:  []int{},
-			wantA:  []int{3, 1, 2},
-			wantB:  []int{},
+			initA:  []float64{1, 2, 3},
+			initB:  []float64{},
+			wantA:  []float64{3, 1, 2},
+			wantB:  []float64{},
 			wantOp: RRR,
 		},
 		{
 			name:   "both empty",
-			initA:  []int{},
-			initB:  []int{},
-			wantA:  []int{},
-			wantB:  []int{},
+			initA:  []float64{},
+			initB:  []float64{},
+			wantA:  []float64{},
+			wantB:  []float64{},
 			wantOp: RRR,
 		},
 	}
@@ -727,11 +728,11 @@ func TestRReverseRotate(t *testing.T) {
 func TestRotateAndReverseRotateAreInverse(t *testing.T) {
 	tests := []struct {
 		name  string
-		initA []int
-		initB []int
+		initA []float64
+		initB []float64
 	}{
-		{name: "single elements", initA: []int{1}, initB: []int{2}},
-		{name: "multiple elements", initA: []int{1, 2, 3}, initB: []int{4, 5, 6}},
+		{name: "single elements", initA: []float64{1}, initB: []float64{2}},
+		{name: "multiple elements", initA: []float64{1, 2, 3}, initB: []float64{4, 5, 6}},
 	}
 
 	for _, tt := range tests {
@@ -775,8 +776,8 @@ func TestRotateAndReverseRotateAreInverse(t *testing.T) {
 
 // TestSSwapEquivalentToSAAndSB verifies ss produces the same result as sa then sb independently.
 func TestSSwapEquivalentToSAAndSB(t *testing.T) {
-	initA := []int{1, 2, 3}
-	initB := []int{4, 5, 6}
+	initA := []float64{1, 2, 3}
+	initB := []float64{4, 5, 6}
 
 	ds1 := New(initA...)
 	for _, v := range initB {
@@ -801,8 +802,8 @@ func TestSSwapEquivalentToSAAndSB(t *testing.T) {
 
 // TestRRotateEquivalentToRAAndRB verifies rr produces the same result as ra then rb independently.
 func TestRRotateEquivalentToRAAndRB(t *testing.T) {
-	initA := []int{1, 2, 3}
-	initB := []int{4, 5, 6}
+	initA := []float64{1, 2, 3}
+	initB := []float64{4, 5, 6}
 
 	ds1 := New(initA...)
 	for _, v := range initB {
@@ -827,8 +828,8 @@ func TestRRotateEquivalentToRAAndRB(t *testing.T) {
 
 // TestRReverseRotateEquivalentToRRAAndRRB verifies rrr produces the same result as rra then rrb independently.
 func TestRReverseRotateEquivalentToRRAAndRRB(t *testing.T) {
-	initA := []int{1, 2, 3}
-	initB := []int{4, 5, 6}
+	initA := []float64{1, 2, 3}
+	initB := []float64{4, 5, 6}
 
 	ds1 := New(initA...)
 	for _, v := range initB {
