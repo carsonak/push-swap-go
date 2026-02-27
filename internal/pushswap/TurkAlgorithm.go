@@ -5,11 +5,11 @@ import (
 	"slices"
 )
 
-type stackID byte
+type stackID bool
 
 const (
-	stackA stackID = iota
-	stackB
+	stackA stackID = false
+	stackB stackID = true
 )
 
 type moveCandidate struct {
@@ -92,10 +92,137 @@ func identifyStack(ss *DoubleStack, id stackID) *psStack {
 	return &ss.B
 }
 
-func findCheapestMove(ss *DoubleStack, to stackID) moveCandidate {
-	panic("Not Implemented")
+// findTargets finds the indices of all the values immediately after the given reference.
+func findTargets(s *psStack, ref float64, greater bool) (targetIndices []int) {
+	targetVal := math.Inf(1)
+
+	if !greater {
+		targetVal = math.Inf(-1)
+	}
+
+	// TODO: Apply the following optimisation.
+	// OPTIMISATION: We can assume that the target stack s is always sorted so
+	// we can apply binary search here.
+	for i := range s.Len() {
+		val, _ := s.Index(i)
+
+		if (greater && val > ref) || (!greater && val < ref) {
+			if val == targetVal {
+				targetIndices = append(targetIndices, i)
+			} else {
+				targetVal = val
+				targetIndices = []int{i}
+			}
+		}
+	}
+
+	return targetIndices
 }
 
+// findGreaterTargets finds indices of all the smallest values greater than the
+// given reference.
+func findGreaterTargets(s *psStack, ref float64) (targetIndices []int) {
+	return findTargets(s, ref, true)
+}
+
+// findSmallerTargets finds indices of all the greatest values smaller than the
+// given reference.
+func findSmallerTargets(s *psStack, ref float64) (targetIndices []int) {
+	return findTargets(s, ref, false)
+}
+
+// shortestRouteToTop calculates the shortest route to move a value at the given
+// index on a stack of the given length.
+func shortestRouteToTop(index, length int) int {
+	if index > length/2 {
+		return length - index
+	}
+
+	return index
+}
+
+// findCheapestTarget returns the cheapest move candidate of the reference index
+// `fromIdx` in the target stack.
+func findCheapestTarget(ss *DoubleStack, fromIdx int, target stackID) (cheapest moveCandidate) {
+	to := identifyStack(ss, target)
+	from := identifyStack(ss, !target)
+	reference, _ := from.Index(fromIdx)
+	var targetIndices []int
+
+	if target == stackB {
+		targetIndices = findGreaterTargets(to, reference)
+	} else {
+		targetIndices = findSmallerTargets(to, reference)
+	}
+
+	cheapest = moveCandidate{
+		fromIdx: fromIdx,
+		toIdx:   -1,
+		cost:    math.MaxInt,
+		target:  target,
+	}
+
+	for _, toIndex := range targetIndices {
+		rotateCost := cheapest.fromIdx + toIndex
+		reverseRotateCost := (from.Len() - cheapest.fromIdx) + (to.Len() - toIndex)
+		separateCost := shortestRouteToTop(cheapest.fromIdx, from.Len()) + shortestRouteToTop(toIndex, to.Len())
+		minCost := min(rotateCost, reverseRotateCost)
+
+		minCost = min(minCost, separateCost)
+
+		if minCost < cheapest.cost {
+			cheapest.toIdx = toIndex
+			cheapest.cost = minCost
+			switch minCost {
+			case rotateCost:
+				cheapest.route = RR
+			case reverseRotateCost:
+				cheapest.route = RRR
+			default:
+				var separate Operation
+				cheapest.route = separate
+			}
+		}
+	}
+
+	return cheapest
+}
+
+func findCheapestMove(ss *DoubleStack, to stackID) (cheapest moveCandidate) {
+	cheapest = moveCandidate{cost: math.MaxInt, fromIdx: -1, toIdx: -1, target: to}
+	fromIdx := -1
+	from := identifyStack(ss, !to)
+
+	// OPTIMISATION: Iterate from the ends working inwards, as cheaper moves are
+	// usually at the ends.
+	top, bottom := 0, from.Len()-1
+	for top < bottom {
+		if top < cheapest.cost {
+			fromIdx = top
+		} else if from.Len()-bottom < cheapest.cost {
+			fromIdx = bottom
+		}
+
+		if fromIdx >= 0 {
+			candidate := findCheapestTarget(ss, fromIdx, to)
+
+			if candidate.cost < cheapest.cost {
+				cheapest = candidate
+			}
+		}
+
+		if cheapest.cost < 3 { // Break early since the deeper we go the higher the costs.
+			break
+		}
+
+		top++
+		bottom--
+	}
+
+	return cheapest
+}
+
+// generateInstructions returns the shortest list of instructions required to move the
 func generateInstructions(ss *DoubleStack, move moveCandidate) (instructions []Operation) {
 	// Identify target stack.
 
@@ -110,11 +237,13 @@ func generateInstructions(ss *DoubleStack, move moveCandidate) (instructions []O
 	// Calculate number of rotations on each stack.
 
 	ARotations := idxA
+
 	if move.route == RRR || idxA > ss.A.Len()/2 {
 		ARotations = ss.A.Len() - idxA
 	}
 
 	BRotations := idxB
+
 	if move.route == RRR || idxB > ss.B.Len()/2 {
 		BRotations = ss.B.Len() - idxB
 	}
