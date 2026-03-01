@@ -10,8 +10,8 @@ type DoubleStack struct {
 	B psStack
 }
 
-// New initialises a `DStack` with an optional list of numbers.
-func New(nums ...float64) *DoubleStack {
+// NewDoubleStack initialises a `DStack` with an optional list of numbers.
+func NewDoubleStack(nums ...float64) *DoubleStack {
 	return &DoubleStack{
 		A: *stack.New(nums...),
 		B: *stack.NewWithCapacity[float64](len(nums)),

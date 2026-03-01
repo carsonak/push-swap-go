@@ -74,22 +74,26 @@ func (s *Stack[T]) Swap() {
 	}
 
 	firstIdx := s.head
-	secondIdx := s.nodes[firstIdx].next
+	firstNode := &s.nodes[firstIdx]
+	secondIdx := firstNode.next
+	secondNode := &s.nodes[secondIdx]
 
 	// Update first node's pointers
-	s.nodes[firstIdx].next = s.nodes[secondIdx].next
+	firstNode.next = secondNode.next
 
 	// Update the third node's prev pointer (if it exists)
-	if s.nodes[secondIdx].next != -1 {
-		s.nodes[s.nodes[secondIdx].next].prev = firstIdx
+	if secondNode.next >= 0 {
+		thirdNode := &s.nodes[secondNode.next]
+
+		thirdNode.prev = firstIdx
 	} else {
 		s.tail = firstIdx // Stack only had 2 items
 	}
 
 	// Update second node's pointers
-	s.nodes[secondIdx].prev = -1
-	s.nodes[secondIdx].next = firstIdx
-	s.nodes[firstIdx].prev = secondIdx
+	secondNode.prev = -1
+	secondNode.next = firstIdx
+	firstNode.prev = secondIdx
 
 	s.head = secondIdx
 }

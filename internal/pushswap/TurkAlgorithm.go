@@ -32,6 +32,7 @@ func findExtremes(s *psStack, findMax bool) (indices []int) {
 	for i, n := range s.All() {
 		if (findMax && n > extreme) || (!findMax && n < extreme) {
 			indices = []int{i}
+			extreme = n
 		} else if n == extreme {
 			indices = append(indices, i)
 		}
@@ -42,13 +43,13 @@ func findExtremes(s *psStack, findMax bool) (indices []int) {
 
 // findMaximums returns the indices of all (in-case of duplicates)
 // the greatest values in the stack.
-func findMaximums(s *psStack) []int {
+func findMaximums(s *psStack) (indices []int) {
 	return findExtremes(s, true)
 }
 
 // findMinimums returns the indices of all (in-case of duplicates)
 // the smallest values in the stack.
-func findMinimums(s *psStack) []int {
+func findMinimums(s *psStack) (indices []int) {
 	return findExtremes(s, false)
 }
 
@@ -84,6 +85,7 @@ func sortLast3(sA *psStack) (instructions []Operation) {
 	return instructions
 }
 
+// identifyStack returns pointer to the stack identified by the given `stackID`.
 func identifyStack(ss *DoubleStack, id stackID) *psStack {
 	if id == stackA {
 		return &ss.A
@@ -101,15 +103,15 @@ func findTargets(s *psStack, ref float64, greater bool) (targetIndices []int) {
 	}
 
 	// TODO: Apply the following optimisation.
-	// OPTIMISATION: We can assume that the target stack s is always sorted so
-	// we can apply binary search here.
+	// OPTIMISATION: We can assume that the target stack `s` is always sorted, therefore
+	// we can apply binary search to find the targets.
 	for i := range s.Len() {
 		val, _ := s.Index(i)
 
 		if (greater && val > ref) || (!greater && val < ref) {
 			if val == targetVal {
 				targetIndices = append(targetIndices, i)
-			} else {
+			} else if (greater && val < targetVal) || (!greater && val > targetVal) {
 				targetVal = val
 				targetIndices = []int{i}
 			}
@@ -149,10 +151,23 @@ func findCheapestTarget(ss *DoubleStack, fromIdx int, target stackID) (cheapest 
 	reference, _ := from.Index(fromIdx)
 	var targetIndices []int
 
-	if target == stackB {
-		targetIndices = findGreaterTargets(to, reference)
-	} else {
+	if target == stackB { // Values in B are sorted in descending order.
 		targetIndices = findSmallerTargets(to, reference)
+		if len(targetIndices) < 1 {
+			targetIndices = findMaximums(to)
+		}
+	} else {
+		targetIndices = findGreaterTargets(to, reference)
+		if len(targetIndices) < 1 {
+			targetIndices = findMinimums(to)
+		}
+	}
+
+	// OPTIMISATION: For duplicated values, we just pick the indices closest
+	// to the ends of the stack.
+	if lenTI := len(targetIndices); lenTI > 1 {
+		slices.Sort(targetIndices)
+		targetIndices = []int{targetIndices[0], targetIndices[lenTI-1]}
 	}
 
 	cheapest = moveCandidate{
@@ -190,13 +205,14 @@ func findCheapestTarget(ss *DoubleStack, fromIdx int, target stackID) (cheapest 
 
 func findCheapestMove(ss *DoubleStack, to stackID) (cheapest moveCandidate) {
 	cheapest = moveCandidate{cost: math.MaxInt, fromIdx: -1, toIdx: -1, target: to}
-	fromIdx := -1
 	from := identifyStack(ss, !to)
 
 	// OPTIMISATION: Iterate from the ends working inwards, as cheaper moves are
 	// usually at the ends.
 	top, bottom := 0, from.Len()-1
-	for top < bottom {
+	for top <= bottom {
+		fromIdx := -1
+
 		if top < cheapest.cost {
 			fromIdx = top
 		} else if from.Len()-bottom < cheapest.cost {
@@ -206,12 +222,13 @@ func findCheapestMove(ss *DoubleStack, to stackID) (cheapest moveCandidate) {
 		if fromIdx >= 0 {
 			candidate := findCheapestTarget(ss, fromIdx, to)
 
-			if candidate.cost < cheapest.cost {
+			if candidate.cost < cheapest.cost || cheapest.fromIdx < 0 {
 				cheapest = candidate
 			}
 		}
 
-		if cheapest.cost < 3 { // Break early since the deeper we go the higher the costs.
+		// Break early since the deeper we go the higher the costs.
+		if cheapest.cost < 3 {
 			break
 		}
 
@@ -237,15 +254,19 @@ func generateInstructions(ss *DoubleStack, move moveCandidate) (instructions []O
 	// Calculate number of rotations on each stack.
 
 	ARotations := idxA
+	opA := RA
 
 	if move.route == RRR || idxA > ss.A.Len()/2 {
 		ARotations = ss.A.Len() - idxA
+		opA = RRA
 	}
 
 	BRotations := idxB
+	opB := RB
 
 	if move.route == RRR || idxB > ss.B.Len()/2 {
 		BRotations = ss.B.Len() - idxB
+		opB = RRB
 	}
 
 	// Generate operations.
@@ -263,12 +284,19 @@ func generateInstructions(ss *DoubleStack, move moveCandidate) (instructions []O
 			ARotations = 0
 		}
 
+		opA = RA
+		opB = RB
+		if move.route == RRR {
+			opA = RRA
+			opB = RRB
+		}
+
 		instructions = append(instructions, ops...)
 	}
 
-	ops = slices.Repeat([]Operation{RA}, ARotations)
+	ops = slices.Repeat([]Operation{opA}, ARotations)
 	instructions = append(instructions, ops...)
-	ops = slices.Repeat([]Operation{RB}, BRotations)
+	ops = slices.Repeat([]Operation{opB}, BRotations)
 	return append(instructions, ops...)
 }
 
@@ -306,7 +334,7 @@ func TurkAlgorithm(nums []float64) []Operation {
 		return nil
 	}
 
-	ss := New(nums...)
+	ss := NewDoubleStack(nums...)
 
 	if len(nums) <= 3 {
 		return sortLast3(&ss.A)

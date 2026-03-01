@@ -83,7 +83,7 @@ func TestPushToA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -148,7 +148,7 @@ func TestPushToB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -180,7 +180,7 @@ func TestPushToAAndPushToBInverse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			ds.PushToB()
 			ds.PushToA()
 
@@ -229,7 +229,7 @@ func TestSwapA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 
 			gotOp := ds.SwapA()
 
@@ -278,7 +278,7 @@ func TestSwapB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New()
+			ds := NewDoubleStack()
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -332,7 +332,7 @@ func TestSSwap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -399,7 +399,7 @@ func TestRotateA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			var gotOp Operation
 			for range tt.numRots {
 				gotOp = ds.RotateA()
@@ -462,7 +462,7 @@ func TestRotateB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New()
+			ds := NewDoubleStack()
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -518,7 +518,7 @@ func TestRRotate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -585,7 +585,7 @@ func TestReverseRotateA(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			var gotOp Operation
 			for range tt.numRots {
 				gotOp = ds.ReverseRotateA()
@@ -648,7 +648,7 @@ func TestReverseRotateB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New()
+			ds := NewDoubleStack()
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -704,7 +704,7 @@ func TestRReverseRotate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -737,7 +737,7 @@ func TestRotateAndReverseRotateAreInverse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name+" ra then rra", func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			ds.RotateA()
 			ds.ReverseRotateA()
 			if gotA := stackContents(ds, "A"); !slicesEqual(gotA, tt.initA) {
@@ -746,7 +746,7 @@ func TestRotateAndReverseRotateAreInverse(t *testing.T) {
 		})
 
 		t.Run(tt.name+" rb then rrb", func(t *testing.T) {
-			ds := New()
+			ds := NewDoubleStack()
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -758,7 +758,7 @@ func TestRotateAndReverseRotateAreInverse(t *testing.T) {
 		})
 
 		t.Run(tt.name+" rr then rrr", func(t *testing.T) {
-			ds := New(tt.initA...)
+			ds := NewDoubleStack(tt.initA...)
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -779,13 +779,13 @@ func TestSSwapEquivalentToSAAndSB(t *testing.T) {
 	initA := []float64{1, 2, 3}
 	initB := []float64{4, 5, 6}
 
-	ds1 := New(initA...)
+	ds1 := NewDoubleStack(initA...)
 	for _, v := range initB {
 		ds1.B.Push(v)
 	}
 	ds1.SSwap()
 
-	ds2 := New(initA...)
+	ds2 := NewDoubleStack(initA...)
 	for _, v := range initB {
 		ds2.B.Push(v)
 	}
@@ -805,13 +805,13 @@ func TestRRotateEquivalentToRAAndRB(t *testing.T) {
 	initA := []float64{1, 2, 3}
 	initB := []float64{4, 5, 6}
 
-	ds1 := New(initA...)
+	ds1 := NewDoubleStack(initA...)
 	for _, v := range initB {
 		ds1.B.Push(v)
 	}
 	ds1.RRotate()
 
-	ds2 := New(initA...)
+	ds2 := NewDoubleStack(initA...)
 	for _, v := range initB {
 		ds2.B.Push(v)
 	}
@@ -831,13 +831,13 @@ func TestRReverseRotateEquivalentToRRAAndRRB(t *testing.T) {
 	initA := []float64{1, 2, 3}
 	initB := []float64{4, 5, 6}
 
-	ds1 := New(initA...)
+	ds1 := NewDoubleStack(initA...)
 	for _, v := range initB {
 		ds1.B.Push(v)
 	}
 	ds1.RReverseRotate()
 
-	ds2 := New(initA...)
+	ds2 := NewDoubleStack(initA...)
 	for _, v := range initB {
 		ds2.B.Push(v)
 	}
