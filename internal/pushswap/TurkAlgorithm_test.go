@@ -47,6 +47,18 @@ func f64sEqual(a, b []float64) bool {
 	return true
 }
 
+func intSlicesEqualIgnoreOrder(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	aSorted := slices.Clone(a)
+	bSorted := slices.Clone(b)
+	slices.Sort(aSorted)
+	slices.Sort(bSorted)
+	return slices.Equal(aSorted, bSorted)
+}
+
 // verifyTurkResult applies ops to a fresh DoubleStack and checks A is sorted
 // ascending (smallest on top) and B is empty.
 func verifyTurkResult(t *testing.T, nums []float64, ops []Operation) {
@@ -77,11 +89,6 @@ func verifyTurkResult(t *testing.T, nums []float64, ops []Operation) {
 }
 
 // --- TestFindExtremes (whitebox) ---
-//
-// Regression guard for Bug 1: findExtremes never updated `extreme`, so every
-// comparison held against ±Inf and `indices` was reset on each iteration,
-// always returning only the last element's index.
-
 func TestFindExtremes(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -301,10 +308,6 @@ func TestShortestRouteToTop(t *testing.T) {
 }
 
 // --- TestFindTargets (whitebox) ---
-//
-// Regression guard for Bug 2: findTargets reset targetIndices on ANY differing
-// value, so the last qualifying value always won instead of the closest one.
-
 func TestFindGreaterTargets(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -326,7 +329,7 @@ func TestFindGreaterTargets(t *testing.T) {
 		},
 		{
 			name:     "all values greater - returns closest",
-			vals:     []float64{5, 4, 3, 2}, // descending, closest (2) is at bottom
+			vals:     []float64{3, 4, 5, 2}, // ascending rotated [2,3,4,5], closest (2) is at bottom
 			ref:      1,
 			wantIdxs: []int{3}, // val=2, the closest > 1
 		},
@@ -346,8 +349,8 @@ func TestFindGreaterTargets(t *testing.T) {
 		{
 			// Regression: Bug 2 - returned index 3 (val=4) instead of index 2 (val=2,
 			// the actual closest value > 1.5).
-			name:     "unsorted - closest is not the last qualifying value",
-			vals:     []float64{1, 3, 2, 4},
+			name:     "rotated - closest is not at the top",
+			vals:     []float64{3, 4, 2}, // ascending rotated [2,3,4]
 			ref:      1.5,
 			wantIdxs: []int{2}, // val=2 is the smallest > 1.5
 		},
@@ -357,21 +360,33 @@ func TestFindGreaterTargets(t *testing.T) {
 			ref:      3,
 			wantIdxs: []int{2}, // only val=5 is strictly > 3
 		},
+		{
+			name:     "pivot at top index 0",
+			vals:     []float64{1, 2, 3, 4}, // already ascending => pivot=0
+			ref:      2.5,
+			wantIdxs: []int{2}, // val=3
+		},
+		{
+			name:     "pivot at bottom index",
+			vals:     []float64{2, 3, 4, 1}, // ascending rotated => pivot=3 (bottom)
+			ref:      0.5,
+			wantIdxs: []int{3}, // val=1 comes from second segment [pivot..end]
+		},
+		{
+			name:     "all elements equal",
+			vals:     []float64{7, 7, 7},
+			ref:      6,
+			wantIdxs: []int{0, 1, 2},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := makeStack(tt.vals...)
-			got := findGreaterTargets(s, tt.ref)
+			got := findGreaterTargetsInSortedRotated(s, tt.ref)
 
-			if len(got) != len(tt.wantIdxs) {
+			if !intSlicesEqualIgnoreOrder(got, tt.wantIdxs) {
 				t.Errorf("findGreaterTargets() = %v, want %v", got, tt.wantIdxs)
-				return
-			}
-			for i, idx := range got {
-				if idx != tt.wantIdxs[i] {
-					t.Errorf("findGreaterTargets()[%d] = %d, want %d", i, idx, tt.wantIdxs[i])
-				}
 			}
 		})
 	}
@@ -399,7 +414,7 @@ func TestFindSmallerTargets(t *testing.T) {
 		{
 			// Regression: Bug 2 - returned [3] (last idx) instead of [2].
 			name:     "all values smaller - returns closest",
-			vals:     []float64{2, 3, 4, 1}, // closest (4) is at index 2
+			vals:     []float64{2, 1, 4, 3}, // descending rotated [4,3,2,1], closest (4) is at index 2
 			ref:      5,
 			wantIdxs: []int{2}, // val=4, the largest < 5
 		},
@@ -419,37 +434,44 @@ func TestFindSmallerTargets(t *testing.T) {
 		{
 			// Regression: Bug 2 - returned index 3 (val=1) instead of index 2 (val=3,
 			// the actual closest value < 3.5).
-			name:     "unsorted - closest is not the last qualifying value",
-			vals:     []float64{4, 2, 3, 1},
+			name:     "rotated - closest is not at the top",
+			vals:     []float64{1, 4, 3, 2}, // descending rotated [4,3,2,1]
 			ref:      3.5,
 			wantIdxs: []int{2}, // val=3 is the largest < 3.5
+		},
+		{
+			name:     "pivot at top index 0",
+			vals:     []float64{9, 7, 5, 3}, // already descending => pivot=0
+			ref:      8,
+			wantIdxs: []int{1}, // val=7
+		},
+		{
+			name:     "pivot at bottom index",
+			vals:     []float64{4, 3, 2, 5}, // descending rotated => pivot=3 (bottom)
+			ref:      5.5,
+			wantIdxs: []int{3}, // val=5 comes from second segment [pivot..end]
+		},
+		{
+			name:     "all elements equal",
+			vals:     []float64{7, 7, 7},
+			ref:      8,
+			wantIdxs: []int{0, 1, 2},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := makeStack(tt.vals...)
-			got := findSmallerTargets(s, tt.ref)
+			got := findSmallerTargetsInSortedRotated(s, tt.ref)
 
-			if len(got) != len(tt.wantIdxs) {
+			if !intSlicesEqualIgnoreOrder(got, tt.wantIdxs) {
 				t.Errorf("findSmallerTargets() = %v, want %v", got, tt.wantIdxs)
-				return
-			}
-			for i, idx := range got {
-				if idx != tt.wantIdxs[i] {
-					t.Errorf("findSmallerTargets()[%d] = %d, want %d", i, idx, tt.wantIdxs[i])
-				}
 			}
 		})
 	}
 }
 
 // --- TestGenerateInstructions (whitebox) ---
-//
-// Regression guard for Bug 3: generateInstructions always emitted RA/RB for
-// remaining individual rotations even when the route (RRR) or element position
-// (index > length/2) required the reverse direction (RRA/RRB).
-
 func TestGenerateInstructions(t *testing.T) {
 	// buildDS creates a DoubleStack with specific A and B stack sizes (filled
 	// with placeholder values) so we can test rotation index arithmetic.
@@ -804,14 +826,6 @@ func TestTurkAlgorithmProducesValidOpsOnly(t *testing.T) {
 }
 
 // --- TestFindCheapestMove (whitebox) ---
-//
-// Regression guard for Bug 4: stale fromIdx was reused across iterations when
-// neither cost-improvement condition fired (fromIdx not reset at loop start).
-//
-// Regression guard for Bug 5: loop guard was `top < bottom`, so the body never
-// ran for a single-element source stack (top==bottom==0), returning the invalid
-// sentinel {fromIdx:-1, toIdx:-1} and causing a panic in generateInstructions.
-
 func TestFindCheapestMove(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -940,3 +954,25 @@ func TestFindCheapestTarget(t *testing.T) {
 		})
 	}
 }
+
+// ============================================================================
+// Regression Test References
+// ============================================================================
+//
+// Bug 1: findExtremes never updated `extreme`, so every comparison held against
+//        ±Inf and `indices` was reset on each iteration, always returning only
+//        the last element's index.
+//
+// Bug 2: findTargets reset targetIndices on ANY differing value, so the last
+//        qualifying value always won instead of the closest one.
+//
+// Bug 3: generateInstructions always emitted RA/RB for remaining individual
+//        rotations even when the route (RRR) or element position (index > length/2)
+//        required the reverse direction (RRA/RRB).
+//
+// Bug 4: stale fromIdx was reused across iterations when neither cost-improvement
+//        condition fired (fromIdx not reset at loop start).
+//
+// Bug 5: loop guard was `top < bottom`, so the body never ran for a single-element
+//        source stack (top==bottom==0), returning the invalid sentinel
+//        {fromIdx:-1, toIdx:-1} and causing a panic in generateInstructions.
