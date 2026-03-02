@@ -1,10 +1,16 @@
 package pushswap
 
 import (
+	"cmp"
 	"math"
 	"slices"
 	"testing"
+
+	stack "push-swap-go/internal/dllStack"
 )
+
+// psStack is a convenience alias for the float64 stack used throughout these tests.
+type psStack = stack.Stack[float64]
 
 // --- helpers ---
 
@@ -26,7 +32,7 @@ func stackVals(s *psStack) []float64 {
 }
 
 // dsContents reads top-to-bottom values from one side of a DoubleStack for assertions.
-func dsContents(ds *DoubleStack, which string) []float64 {
+func dsContents(ds *DoubleStack[float64], which string) []float64 {
 	if which == "A" {
 		return stackVals(&ds.A)
 	}
@@ -65,7 +71,7 @@ func verifyTurkResult(t *testing.T, nums []float64, ops []Operation) {
 	t.Helper()
 	ds := NewDoubleStack(nums...)
 
-	executeInstructions(ds, ops)
+	ds.ExecuteInstructions(ops)
 	b := dsContents(ds, "B")
 
 	if len(b) != 0 {
@@ -475,7 +481,7 @@ func TestFindSmallerTargets(t *testing.T) {
 func TestGenerateInstructions(t *testing.T) {
 	// buildDS creates a DoubleStack with specific A and B stack sizes (filled
 	// with placeholder values) so we can test rotation index arithmetic.
-	buildDS := func(aVals, bVals []float64) *DoubleStack {
+	buildDS := func(aVals, bVals []float64) *DoubleStack[float64] {
 		ds := NewDoubleStack(aVals...)
 		for _, v := range bVals {
 			ds.B.PushBottom(v)
@@ -589,7 +595,7 @@ func TestExecuteInstructions(t *testing.T) {
 	initA := []float64{1, 2, 3}
 	initB := []float64{4, 5, 6}
 
-	buildDS := func() *DoubleStack {
+	buildDS := func() *DoubleStack[float64] {
 		ds := NewDoubleStack(initA...)
 		for _, v := range initB {
 			ds.B.PushBottom(v)
@@ -692,7 +698,7 @@ func TestExecuteInstructions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := buildDS()
-			executeInstructions(ds, tt.ops)
+			ds.ExecuteInstructions(tt.ops)
 
 			gotA := dsContents(ds, "A")
 			if !f64sEqual(gotA, tt.wantA) {
@@ -953,6 +959,318 @@ func TestFindCheapestTarget(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ============================================================================
+// Generic Type Tests
+// ============================================================================
+//
+// These tests exercise DoubleStack[T] and TurkAlgorithm[T] with types other
+// than float64 to confirm the generic implementation works for any cmp.Ordered T.
+
+// makeStackT creates a stack.Stack[T] seeded from the DoubleStack helper.
+func makeStackT[T cmp.Ordered](vals ...T) *stack.Stack[T] {
+	ds := NewDoubleStack(vals...)
+	return &ds.A
+}
+
+// verifyTurkResultT replays ops on a fresh DoubleStack[T] and asserts A is
+// sorted ascending with no data loss and B is empty.
+func verifyTurkResultT[T cmp.Ordered](t *testing.T, nums []T, ops []Operation) {
+	t.Helper()
+	ds := NewDoubleStack(nums...)
+	ds.ExecuteInstructions(ops)
+
+	if ds.B.Len() != 0 {
+		bVals := make([]T, 0, ds.B.Len())
+		for _, v := range ds.B.All() {
+			bVals = append(bVals, v)
+		}
+		t.Errorf("B is not empty after applying ops: %v", bVals)
+	}
+
+	aVals := make([]T, 0, ds.A.Len())
+	for _, v := range ds.A.All() {
+		aVals = append(aVals, v)
+	}
+
+	if !slices.IsSorted(aVals) {
+		t.Errorf("A is not sorted after applying ops: %v", aVals)
+	}
+
+	want := slices.Clone(nums)
+	slices.Sort(want)
+
+	if !slices.Equal(aVals, want) {
+		t.Errorf("A values = %v, want %v", aVals, want)
+	}
+}
+
+// dsOpsCase describes a single DoubleStack operation test.
+type dsOpsCase[T cmp.Ordered] struct {
+	name     string
+	initA    []T
+	run      func(*DoubleStack[T]) Operation
+	wantOp   Operation
+	wantA    []T
+	wantBLen int
+}
+
+// runDoubleStackOpsTests executes a table of dsOpsCase entries.
+func runDoubleStackOpsTests[T cmp.Ordered](t *testing.T, cases []dsOpsCase[T]) {
+	t.Helper()
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			ds := NewDoubleStack(tt.initA...)
+			gotOp := tt.run(ds)
+
+			if gotOp != tt.wantOp {
+				t.Errorf("op = %q, want %q", gotOp, tt.wantOp)
+			}
+
+			aVals := make([]T, 0, ds.A.Len())
+			for _, v := range ds.A.All() {
+				aVals = append(aVals, v)
+			}
+
+			if !slices.Equal(aVals, tt.wantA) {
+				t.Errorf("A = %v, want %v", aVals, tt.wantA)
+			}
+			if ds.B.Len() != tt.wantBLen {
+				t.Errorf("B.Len() = %d, want %d", ds.B.Len(), tt.wantBLen)
+			}
+		})
+	}
+}
+
+// TestDoubleStackOps verifies core DoubleStack operations for int and string types.
+func TestDoubleStackOps(t *testing.T) {
+	t.Run("int", func(t *testing.T) {
+		runDoubleStackOpsTests(t, []dsOpsCase[int]{
+			{
+				name:     "PushToB moves top of A onto empty B",
+				initA:    []int{10, 20, 30},
+				run:      (*DoubleStack[int]).PushToB,
+				wantOp:   PB,
+				wantA:    []int{20, 30},
+				wantBLen: 1,
+			},
+			{
+				name:     "PushToA restores after PushToB",
+				initA:    []int{10, 20, 30},
+				run:      func(ds *DoubleStack[int]) Operation { ds.PushToB(); return ds.PushToA() },
+				wantOp:   PA,
+				wantA:    []int{10, 20, 30},
+				wantBLen: 0,
+			},
+			{
+				name:     "SwapA swaps the top two elements",
+				initA:    []int{1, 2, 3},
+				run:      (*DoubleStack[int]).SwapA,
+				wantOp:   SA,
+				wantA:    []int{2, 1, 3},
+				wantBLen: 0,
+			},
+			{
+				name:     "RotateA moves top to bottom",
+				initA:    []int{1, 2, 3},
+				run:      (*DoubleStack[int]).RotateA,
+				wantOp:   RA,
+				wantA:    []int{2, 3, 1},
+				wantBLen: 0,
+			},
+			{
+				name:     "ReverseRotateA moves bottom to top",
+				initA:    []int{1, 2, 3},
+				run:      (*DoubleStack[int]).ReverseRotateA,
+				wantOp:   RRA,
+				wantA:    []int{3, 1, 2},
+				wantBLen: 0,
+			},
+		})
+	})
+
+	t.Run("string", func(t *testing.T) {
+		runDoubleStackOpsTests(t, []dsOpsCase[string]{
+			{
+				name:     "PushToB moves top string onto empty B",
+				initA:    []string{"apple", "banana", "cherry"},
+				run:      (*DoubleStack[string]).PushToB,
+				wantOp:   PB,
+				wantA:    []string{"banana", "cherry"},
+				wantBLen: 1,
+			},
+			{
+				name:     "SwapA swaps the top two strings",
+				initA:    []string{"apple", "banana", "cherry"},
+				run:      (*DoubleStack[string]).SwapA,
+				wantOp:   SA,
+				wantA:    []string{"banana", "apple", "cherry"},
+				wantBLen: 0,
+			},
+			{
+				name:     "RotateA moves top string to bottom",
+				initA:    []string{"apple", "banana", "cherry"},
+				run:      (*DoubleStack[string]).RotateA,
+				wantOp:   RA,
+				wantA:    []string{"banana", "cherry", "apple"},
+				wantBLen: 0,
+			},
+			{
+				name:     "ReverseRotateA moves bottom string to top",
+				initA:    []string{"apple", "banana", "cherry"},
+				run:      (*DoubleStack[string]).ReverseRotateA,
+				wantOp:   RRA,
+				wantA:    []string{"cherry", "apple", "banana"},
+				wantBLen: 0,
+			},
+		})
+	})
+}
+
+// findExtremesCase describes a single findExtremes test for any ordered T.
+type findExtremesCase[T cmp.Ordered] struct {
+	name     string
+	vals     []T
+	findMax  bool
+	wantIdxs []int
+}
+
+// runFindExtremesTests executes a table of findExtremesCase entries.
+func runFindExtremesTests[T cmp.Ordered](t *testing.T, cases []findExtremesCase[T]) {
+	t.Helper()
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			s := makeStackT(tt.vals...)
+			got := findExtremes(s, tt.findMax)
+
+			if len(got) != len(tt.wantIdxs) {
+				t.Fatalf("findExtremes() = %v, want %v", got, tt.wantIdxs)
+			}
+			for i, idx := range got {
+				if idx != tt.wantIdxs[i] {
+					t.Errorf("findExtremes()[%d] = %d, want %d", i, idx, tt.wantIdxs[i])
+				}
+			}
+		})
+	}
+}
+
+// TestFindExtremesOrdered verifies findExtremes for int and string types.
+func TestFindExtremesOrdered(t *testing.T) {
+	t.Run("int", func(t *testing.T) {
+		runFindExtremesTests(t, []findExtremesCase[int]{
+			{
+				name:     "empty - max",
+				vals:     []int{},
+				findMax:  true,
+				wantIdxs: nil,
+			},
+			{
+				name:     "single - min",
+				vals:     []int{42},
+				findMax:  false,
+				wantIdxs: []int{0},
+			},
+			{
+				name:     "distinct - max",
+				vals:     []int{3, 1, 4, 1, 5, 9},
+				findMax:  true,
+				wantIdxs: []int{5},
+			},
+			{
+				name:     "distinct - min (duplicates)",
+				vals:     []int{3, 1, 4, 1, 5, 9},
+				findMax:  false,
+				wantIdxs: []int{1, 3},
+			},
+			{
+				name:     "all equal - max",
+				vals:     []int{7, 7, 7},
+				findMax:  true,
+				wantIdxs: []int{0, 1, 2},
+			},
+			{
+				name:     "negative values - min",
+				vals:     []int{-1, -5, 0, -5, 3},
+				findMax:  false,
+				wantIdxs: []int{1, 3},
+			},
+		})
+	})
+
+	t.Run("string", func(t *testing.T) {
+		runFindExtremesTests(t, []findExtremesCase[string]{
+			{
+				name:     "distinct - max",
+				vals:     []string{"banana", "apple", "cherry"},
+				findMax:  true,
+				wantIdxs: []int{2},
+			},
+			{
+				name:     "distinct - min",
+				vals:     []string{"banana", "apple", "cherry"},
+				findMax:  false,
+				wantIdxs: []int{1},
+			},
+			{
+				name:     "duplicate max",
+				vals:     []string{"a", "z", "m", "z"},
+				findMax:  true,
+				wantIdxs: []int{1, 3},
+			},
+			{
+				name:     "all equal - min",
+				vals:     []string{"x", "x", "x"},
+				findMax:  false,
+				wantIdxs: []int{0, 1, 2},
+			},
+		})
+	})
+}
+
+// turkAlgorithmCase describes a TurkAlgorithm input for any ordered T.
+type turkAlgorithmCase[T cmp.Ordered] struct {
+	name string
+	nums []T
+}
+
+// runTurkAlgorithmTests executes a table of turkAlgorithmCase entries.
+func runTurkAlgorithmTests[T cmp.Ordered](t *testing.T, cases []turkAlgorithmCase[T]) {
+	t.Helper()
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			ops := TurkAlgorithm(tt.nums)
+			verifyTurkResultT(t, tt.nums, ops)
+		})
+	}
+}
+
+// TestTurkAlgorithmOrdered verifies TurkAlgorithm sorts correctly for int and string types.
+func TestTurkAlgorithmOrdered(t *testing.T) {
+	t.Run("int", func(t *testing.T) {
+		runTurkAlgorithmTests(t, []turkAlgorithmCase[int]{
+			{name: "already sorted", nums: []int{1, 2, 3, 4, 5}},
+			{name: "reverse sorted", nums: []int{5, 4, 3, 2, 1}},
+			{name: "random small", nums: []int{3, 7, 1, 5, 9, 2, 6, 8}},
+			{name: "negative values", nums: []int{-3, 0, -1, 5, 2, -7}},
+			{name: "single element", nums: []int{42}},
+			{name: "two elements", nums: []int{2, 1}},
+			{name: "three elements", nums: []int{3, 1, 2}},
+			{name: "with duplicates", nums: []int{4, 2, 4, 1, 2}},
+		})
+	})
+
+	t.Run("string", func(t *testing.T) {
+		runTurkAlgorithmTests(t, []turkAlgorithmCase[string]{
+			{name: "already sorted", nums: []string{"apple", "banana", "cherry"}},
+			{name: "reverse sorted", nums: []string{"cherry", "banana", "apple"}},
+			{name: "random", nums: []string{"mango", "apple", "kiwi", "banana", "fig"}},
+			{name: "single element", nums: []string{"only"}},
+			{name: "two elements", nums: []string{"zebra", "ant"}},
+			{name: "with duplicates", nums: []string{"cat", "ant", "cat", "bee"}},
+		})
+	})
 }
 
 // ============================================================================

@@ -1,8 +1,11 @@
 package pushswap
 
 import (
+	"cmp"
 	"math"
 	"slices"
+
+	stack "push-swap-go/internal/dllStack"
 )
 
 type stackID bool
@@ -22,18 +25,23 @@ type moveCandidate struct {
 
 // findExtremes returns the indices of all (in-case of duplicates)
 // the smallest/largest values in the stack.
-func findExtremes(s *psStack, findMax bool) (indices []int) {
-	extreme := math.Inf(1)
-
-	if findMax {
-		extreme = math.Inf(-1)
+func findExtremes[T cmp.Ordered](s *stack.Stack[T], findMax bool) (indices []int) {
+	if s.Len() == 0 {
+		return nil
 	}
 
-	for i, n := range s.All() {
-		if (findMax && n > extreme) || (!findMax && n < extreme) {
+	extreme, _ := s.Index(0)
+	indices = []int{0}
+
+	for i, val := range s.All() {
+		if i == 0 {
+			continue
+		}
+
+		if (findMax && val > extreme) || (!findMax && val < extreme) {
 			indices = []int{i}
-			extreme = n
-		} else if n == extreme {
+			extreme = val
+		} else if val == extreme {
 			indices = append(indices, i)
 		}
 	}
@@ -43,18 +51,18 @@ func findExtremes(s *psStack, findMax bool) (indices []int) {
 
 // findMaximums returns the indices of all (in-case of duplicates)
 // the greatest values in the stack.
-func findMaximums(s *psStack) (indices []int) {
+func findMaximums[T cmp.Ordered](s *stack.Stack[T]) (indices []int) {
 	return findExtremes(s, true)
 }
 
 // findMinimums returns the indices of all (in-case of duplicates)
 // the smallest values in the stack.
-func findMinimums(s *psStack) (indices []int) {
+func findMinimums[T cmp.Ordered](s *stack.Stack[T]) (indices []int) {
 	return findExtremes(s, false)
 }
 
 // sortLast3 sorts a stack with at-most 3 values.
-func sortLast3(sA *psStack) (instructions []Operation) {
+func sortLast3[T cmp.Ordered](sA *stack.Stack[T]) (instructions []Operation) {
 	if sA.Len() < 2 || sA.Len() > 3 {
 		return nil
 	}
@@ -86,15 +94,15 @@ func sortLast3(sA *psStack) (instructions []Operation) {
 }
 
 // findStartIndexRotated returns the start index of a sorted rotated stack.
-func findStartIndexRotated(stack *psStack, isAscending bool) (pivotIndex int) {
+func findStartIndexRotated[T cmp.Ordered](s *stack.Stack[T], isAscending bool) (pivotIndex int) {
 	topIdx := 0
-	botIdx := stack.Len() - 1
+	botIdx := s.Len() - 1
 
 	for topIdx < botIdx {
 		midIdx := topIdx + (botIdx-topIdx)/2
-		mid, _ := stack.Index(midIdx)
-		top, _ := stack.Index(topIdx)
-		bot, _ := stack.Index(botIdx)
+		mid, _ := s.Index(midIdx)
+		top, _ := s.Index(topIdx)
+		bot, _ := s.Index(botIdx)
 
 		// Duplicated numbers means we cannot tell which side of `mid` is sorted,
 		// therefore we shrink the search area to exclude the duplicated values.
@@ -119,7 +127,7 @@ func findStartIndexRotated(stack *psStack, isAscending bool) (pivotIndex int) {
 //
 // Complexity: O(log n + k), where k is the number of duplicate occurrences of the
 // target value.
-func findTargetsInSortedRotated(s *psStack, ref float64, greater bool, isAscending bool) []int {
+func findTargetsInSortedRotated[T cmp.Ordered](s *stack.Stack[T], ref T, greater bool, isAscending bool) []int {
 	stackLen := s.Len()
 	if stackLen == 0 {
 		return nil
@@ -130,7 +138,7 @@ func findTargetsInSortedRotated(s *psStack, ref float64, greater bool, isAscendi
 
 	// searchSegmentCandidate binary-searches the sorted segment [top, bot] for the value
 	// closest to ref on the desired side (smallest value > ref, or largest value < ref).
-	searchSegmentCandidate := func(top, bot int) (bestVal float64, bestIdx int, found bool) {
+	searchSegmentCandidate := func(top, bot int) (bestVal T, bestIdx int, found bool) {
 		for top <= bot {
 			mid := top + (bot-top)/2
 			midVal, _ := s.Index(mid)
@@ -197,13 +205,13 @@ func findTargetsInSortedRotated(s *psStack, ref float64, greater bool, isAscendi
 
 // findGreaterTargetsInSortedRotated finds indices of all the smallest values greater than the
 // given reference in a rotated ascending sorted stack.
-func findGreaterTargetsInSortedRotated(s *psStack, ref float64) (targetIndices []int) {
+func findGreaterTargetsInSortedRotated[T cmp.Ordered](s *stack.Stack[T], ref T) (targetIndices []int) {
 	return findTargetsInSortedRotated(s, ref, true, true)
 }
 
 // findSmallerTargetsInSortedRotated finds indices of all the greatest values smaller than the
 // given reference in a rotated descending sorted stack.
-func findSmallerTargetsInSortedRotated(s *psStack, ref float64) (targetIndices []int) {
+func findSmallerTargetsInSortedRotated[T cmp.Ordered](s *stack.Stack[T], ref T) (targetIndices []int) {
 	return findTargetsInSortedRotated(s, ref, false, false)
 }
 
@@ -219,7 +227,7 @@ func shortestRouteToTop(index, length int) int {
 
 // findCheapestTarget returns the cheapest move candidate of the reference index
 // `fromIdx` in the target stack.
-func findCheapestTarget(stacks *DoubleStack, fromIdx int, target stackID) (cheapest moveCandidate) {
+func findCheapestTarget[T cmp.Ordered](stacks *DoubleStack[T], fromIdx int, target stackID) (cheapest moveCandidate) {
 	to := &stacks.B
 	from := &stacks.A
 	if target == stackA {
@@ -282,7 +290,7 @@ func findCheapestTarget(stacks *DoubleStack, fromIdx int, target stackID) (cheap
 	return cheapest
 }
 
-func findCheapestMove(stacks *DoubleStack, to stackID) (cheapest moveCandidate) {
+func findCheapestMove[T cmp.Ordered](stacks *DoubleStack[T], to stackID) (cheapest moveCandidate) {
 	cheapest = moveCandidate{cost: math.MaxInt, fromIdx: -1, toIdx: -1, target: to}
 	from := &stacks.A
 	if to == stackA {
@@ -323,7 +331,7 @@ func findCheapestMove(stacks *DoubleStack, to stackID) (cheapest moveCandidate) 
 
 // generateInstructions returns the shortest list of instructions required to move the
 // element at the specified indices to their target positions.
-func generateInstructions(stacks *DoubleStack, move moveCandidate) (instructions []Operation) {
+func generateInstructions[T cmp.Ordered](stacks *DoubleStack[T], move moveCandidate) (instructions []Operation) {
 	idxA := move.toIdx
 	idxB := move.fromIdx
 
@@ -369,36 +377,7 @@ func generateInstructions(stacks *DoubleStack, move moveCandidate) (instructions
 	return instructions
 }
 
-func executeInstructions(stacks *DoubleStack, instructions []Operation) {
-	for _, op := range instructions {
-		switch op {
-		case PA:
-			stacks.PushToA()
-		case PB:
-			stacks.PushToB()
-		case RA:
-			stacks.RotateA()
-		case RB:
-			stacks.RotateB()
-		case RR:
-			stacks.RRotate()
-		case RRA:
-			stacks.ReverseRotateA()
-		case RRB:
-			stacks.ReverseRotateB()
-		case RRR:
-			stacks.RReverseRotate()
-		case SA:
-			stacks.SwapA()
-		case SB:
-			stacks.SwapB()
-		case SS:
-			stacks.SSwap()
-		}
-	}
-}
-
-func TurkAlgorithm(nums []float64) []Operation {
+func TurkAlgorithm[T cmp.Ordered](nums []T) []Operation {
 	if slices.IsSorted(nums) {
 		return nil
 	}
@@ -415,7 +394,7 @@ func TurkAlgorithm(nums []float64) []Operation {
 		move := findCheapestMove(stacks, stackB)
 		ops := append(generateInstructions(stacks, move), PB)
 
-		executeInstructions(stacks, ops)
+		stacks.ExecuteInstructions(ops)
 		instructions = append(instructions, ops...)
 	}
 
@@ -425,7 +404,7 @@ func TurkAlgorithm(nums []float64) []Operation {
 		move := findCheapestMove(stacks, stackA)
 		ops := append(generateInstructions(stacks, move), PA)
 
-		executeInstructions(stacks, ops)
+		stacks.ExecuteInstructions(ops)
 		instructions = append(instructions, ops...)
 	}
 

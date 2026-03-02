@@ -6,7 +6,7 @@ import (
 
 // stackContents reads a stack's elements into a slice from top (index 0) to bottom.
 // Using only the public Index/Len API to avoid coupling to the internal implementation.
-func stackContents(ds *DoubleStack, which string) []float64 {
+func stackContents(ds *DoubleStack[float64], which string) []float64 {
 	var s interface {
 		Len() int
 		Index(int) (float64, bool)
@@ -278,7 +278,7 @@ func TestSwapB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := NewDoubleStack()
+			ds := NewDoubleStack[float64]()
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -462,7 +462,7 @@ func TestRotateB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := NewDoubleStack()
+			ds := NewDoubleStack[float64]()
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -648,7 +648,7 @@ func TestReverseRotateB(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := NewDoubleStack()
+			ds := NewDoubleStack[float64]()
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}
@@ -746,7 +746,7 @@ func TestRotateAndReverseRotateAreInverse(t *testing.T) {
 		})
 
 		t.Run(tt.name+" rb then rrb", func(t *testing.T) {
-			ds := NewDoubleStack()
+			ds := NewDoubleStack[float64]()
 			for _, v := range tt.initB {
 				ds.B.PushBottom(v)
 			}

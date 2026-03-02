@@ -1,6 +1,10 @@
 package dllStack
 
-import "iter"
+import (
+	"fmt"
+	"iter"
+	"strings"
+)
 
 // node represents a single element in the doubly linked list.
 type node[T any] struct {
@@ -229,4 +233,17 @@ func (s *Stack[T]) All() iter.Seq2[int, T] {
 // Len returns the current number of items in the stack.
 func (s *Stack[T]) Len() int {
 	return s.size
+}
+
+// String returns the string representation of a stack.
+func (s *Stack[T]) String() string {
+	var output strings.Builder
+
+	output.WriteString("{ ")
+	for _, val := range s.All() {
+		output.WriteString(fmt.Sprintf("%v ", val))
+	}
+
+	output.WriteByte('}')
+	return output.String()
 }
