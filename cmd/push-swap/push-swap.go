@@ -66,19 +66,24 @@ func readNumbers(file string, allowDups bool) ([]float64, error) {
 	}
 
 	var numStrings []string
+	var line strings.Builder
 	inputReader := bufio.NewReader(input)
 
 	for {
-		buf, _, err := inputReader.ReadLine()
+		buf, isPrefix, err := inputReader.ReadLine()
 
-		// Only treat non-EOF errors as actual errors
 		if err != nil && err != io.EOF {
 			return nil, fmt.Errorf("reading file: %v", err)
 		}
 
 		// Process the line if it has content
 		if len(buf) > 0 {
-			numStrings = append(numStrings, strings.Fields(string(buf))...)
+			line.WriteString(string(buf))
+
+			if !isPrefix {
+				numStrings = append(numStrings, strings.Fields(line.String())...)
+				line.Reset()
+			}
 		}
 
 		// Exit the loop on EOF
